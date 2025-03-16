@@ -1,1 +1,0 @@
-`uv run --with jupyter jupyter lab --no-browser`

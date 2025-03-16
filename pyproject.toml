@@ -8,3 +8,10 @@ dependencies = [
     "numpy>=2.2.3",
     "torch>=2.6.0",
 ]
+
+[dependency-groups]
+dev = [
+    "ipywidgets>=8.1.5",
+    "jupyterlab>=4.3.6",
+    "pytest>=8.3.5",
+]
