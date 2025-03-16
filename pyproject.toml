@@ -1,0 +1,10 @@
+[project]
+name = "tensor-network"
+version = "0.1.0"
+description = "Tensor Network Exercises"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.2.3",
+    "torch>=2.6.0",
+]
