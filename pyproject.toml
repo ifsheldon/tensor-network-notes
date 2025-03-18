@@ -5,8 +5,11 @@ description = "Tensor Network Exercises"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "matplotlib>=3.10.1",
     "numpy>=2.2.3",
+    "scipy>=1.15.2",
     "torch>=2.6.0",
+    "tqdm>=4.67.1",
 ]
 
 [dependency-groups]
