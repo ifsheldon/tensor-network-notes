@@ -9,6 +9,12 @@ This is a [`uv`](https://github.com/astral-sh/uv) project. Setting up the enviro
 1. If you have not got `uv` installed, follow the [instructions](https://docs.astral.sh/uv/getting-started/installation/) to install it.
 2. Run `uv sync` to create an environment and get dependencies, including development dependencies that you need to run the code in a notebook.
 
+## Run Tools
+
+* JupyterLab: `uv run jupyter lab`
+* nbdev: `uv run nbdev_*`
+    * To export and sync code from a notebook to `tensor_network` package, run `uv run nbdev_export`
+
 ## Contribution
 
 Contributions are very welcome. Please file an issue or PR if you have any questions or suggestions.
