@@ -16,5 +16,6 @@ dependencies = [
 dev = [
     "ipywidgets>=8.1.5",
     "jupyterlab>=4.3.6",
+    "nbdev>=2.3.37",
     "pytest>=8.3.5",
 ]
