@@ -84,6 +84,8 @@ def eigs_power(mat: torch.Tensor, which: str, v0=None) -> (torch.Tensor, torch.T
 #|export
 def eigs_power_ref(mat, v0=None, which='la', tau=0.01, it_time=2000, tol=1e-14):
     """
+    From https://github.com/ranshiju/Python-for-Tensor-Network-Tutorial/blob/4c89b0766159d3495122ec39339e7bd019f10fdf/Library/ExampleFun.py#L4
+
     :param mat: 输入矩阵（实对称阵）
     :param v0: 初始化向量，默认值为随机向量
     :param which: 计算哪个本征值与本征向量，
