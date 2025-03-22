@@ -59,7 +59,7 @@ def rank1_tc(x, v=None, it_time=10000, tol=1e-14):
         for n in range(x.ndimension()):
             x1 = x.clone()
             for m in range(n):
-                # TODO: why do we need conj here? same for my implementation of rank1_decomposition
+                # conj here because we need to "cancel" out vectors by taking the dot product
                 x1 = tc.tensordot(x1, v[m].conj(), [[0], [0]])
             for m in range(len(v) - 1, n, -1):
                 x1 = tc.tensordot(x1, v[m].conj(), [[-1], [0]])
