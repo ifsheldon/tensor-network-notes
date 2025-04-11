@@ -8,6 +8,7 @@ __all__ = ['outer_product', 'rank1_tc', 'rank1_decomposition', 'rank1_decomposit
 import torch
 from tqdm.auto import tqdm
 from typing import List
+# TODO: use einops
 
 # %% ../1-8.ipynb 3
 def outer_product(vectors: List[torch.Tensor]) -> torch.Tensor:
