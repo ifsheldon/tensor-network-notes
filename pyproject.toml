@@ -1,10 +1,11 @@
 [project]
-name = "tensor-network"
+name="tensor-network"
 version = "0.1.0"
 description = "Tensor Network Exercises"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python=">=3.12"
 dependencies = [
+    "einops>=0.8.1",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
     "scipy>=1.15.2",
