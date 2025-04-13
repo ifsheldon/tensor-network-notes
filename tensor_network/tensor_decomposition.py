@@ -7,37 +7,21 @@ __all__ = ['outer_product', 'rank1_tc', 'rank1_decomposition', 'rank1_decomposit
 # %% ../1-8.ipynb 0
 import torch
 from tqdm.auto import tqdm
-from typing import List
-# TODO: use einops
+from typing import List, Tuple
+import einops
 
 # %% ../1-8.ipynb 3
 def outer_product(vectors: List[torch.Tensor]) -> torch.Tensor:
-    for v in vectors:
-        assert v.dim() == 1
+    for i, v in enumerate(vectors):
+        assert v.dim() == 1, f"Expected 1D tensor, got {v.dim()}D tensor at index {i}"
     num_vectors = len(vectors)
-    assert num_vectors >= 2
-    # if num_vectors <= 26, we can just use einsum
-    if num_vectors <= 26:
-        alphabet = "abcdefghijklmnopqrstuvwxyz"
-        input_string = ",".join(c for c in alphabet[:num_vectors])
-        output_string = alphabet[:num_vectors]
-        einsum_exp = f"{input_string} -> {output_string}"
-        return torch.einsum(einsum_exp, *vectors)
-    else:
-        reshaped_vectors = []
-        for (i, v) in enumerate(vectors):
-            # calculate shapes
-            s = torch.ones(num_vectors, dtype=torch.int)
-            s[i] = v.shape[0]
-            s = s.tolist()
-            reshaped_vectors.append(v.reshape(s))
-
-        # broadcast multiplication
-        v = reshaped_vectors[0]
-        for i in range(1, num_vectors):
-            v = v * reshaped_vectors[i]
-        return v
-
+    assert num_vectors >= 2, "At least two vectors are required for outer product"
+    vec_dim_names = [f"v{i}" for i in range(num_vectors)]
+    einsum_exp = "{input_string} -> {output_string}".format(
+        input_string=",".join(vec_dim_names),
+        output_string=" ".join(vec_dim_names),
+    )
+    return einops.einsum(*vectors, einsum_exp)
 
 # %% ../1-8.ipynb 6
 def rank1_tc(x, v=None, it_time=10000, tol=1e-14):
@@ -79,7 +63,7 @@ def rank1_tc(x, v=None, it_time=10000, tol=1e-14):
 def rank1_decomposition(tensor: torch.Tensor,
                         num_iter: int = 10000,
                         stop_criterion: str = "zeta",
-                        eps: float = 1e-14) -> (List[torch.Tensor], torch.Tensor):
+                        eps: float = 1e-14) -> Tuple[List[torch.Tensor], torch.Tensor]:
     assert stop_criterion in ["zeta", "norms"]
     device = tensor.device
     t_shape = tensor.shape
@@ -133,8 +117,7 @@ def rank1_decomposition(tensor: torch.Tensor,
     return decomposed_vecs, zeta
 
 
-def rank1_decomposition_gradient_based(tensor: torch.Tensor, num_iter: int = 1000, eps: float = 1e-14) -> (
-        List[torch.Tensor], torch.Tensor):
+def rank1_decomposition_gradient_based(tensor: torch.Tensor, num_iter: int = 1000, eps: float = 1e-14) -> Tuple[List[torch.Tensor], torch.Tensor]:
     t_shape = tensor.shape
     decomposed_vecs = [torch.randn(d, dtype=tensor.dtype) for d in t_shape]
     decomposed_vecs = [v / v.norm() for v in decomposed_vecs]
