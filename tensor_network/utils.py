@@ -32,6 +32,13 @@ def inverse_permutation(permutation: List[int]) -> List[int]:
 
 # %% ../utils.ipynb 2
 def check_state_tensor(tensor: torch.Tensor):
+    """
+    Check if the tensor is a valid quantum state tensor.
+    Args:
+        tensor: The tensor to check.
+    Raises:
+        AssertionError: If the tensor is not a valid quantum state tensor.
+    """
     assert isinstance(tensor, torch.Tensor), "quantum_state must be a torch.Tensor"
     assert tensor.dtype in [torch.float32, torch.float64, torch.complex64, torch.complex128], \
         "quantum_state must be a float or complex tensor"
@@ -39,6 +46,14 @@ def check_state_tensor(tensor: torch.Tensor):
     assert tensor.ndim > 0, "quantum_state must be a tensor with at least one dimension"
 
 def check_quantum_gate(tensor: torch.Tensor, num_qubits: int):
+    """
+    Check if the tensor is a valid quantum gate tensor.
+    Args:
+        tensor: The tensor to check.
+        num_qubits: The number of qubits.
+    Raises:
+        AssertionError: If the tensor is not a valid quantum gate tensor.
+    """
     assert isinstance(tensor, torch.Tensor), "quantum_gate must be a torch.Tensor"
     assert tensor.dtype in [torch.float32, torch.float64, torch.complex64, torch.complex128], \
         "quantum_gate must be a float or complex tensor"
@@ -52,6 +67,16 @@ def check_quantum_gate(tensor: torch.Tensor, num_qubits: int):
         assert tensor.ndim == 2 * num_qubits, f"gate must have 2 * num_qubits dimensions, got {tensor.ndim}"
 
 def unify_tensor_dtypes(t1: torch.Tensor, t2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Unify the dtypes of two tensors to the most appropriate type.
+    Args:
+        t1: First tensor.
+        t2: Second tensor.
+    Returns:
+        Tuple of tensors with unified dtypes.
+    Raises:
+        AssertionError: if the dtypes of the tensors are not valid.
+    """
     assert t1.dtype in [torch.float32, torch.float64, torch.complex64, torch.complex128], \
         "quantum_state must be a float or complex tensor"
     assert t2.dtype in [torch.float32, torch.float64, torch.complex64, torch.complex128], \
@@ -78,6 +103,16 @@ def unify_tensor_dtypes(t1: torch.Tensor, t2: torch.Tensor) -> Tuple[torch.Tenso
     raise Exception("Unreachable code in unify_tensor_dtypes")
 
 def map_float_to_complex(*, tensor: torch.Tensor | None = None, dtype: torch.dtype | None = None) -> torch.Tensor | torch.dtype:
+    """
+    Map a float tensor or dtype to a complex tensor or dtype.
+    Args:
+        tensor: The input tensor.
+        dtype: The input dtype.
+    Returns:
+        The complex tensor or dtype.
+    Raises:
+        AssertionError: If neither tensor nor dtype is provided.
+    """
     assert tensor is not None or dtype is not None, "Either tensor or dtype must be provided"
     original_dtype = tensor.dtype if tensor is not None else dtype
     assert original_dtype in [torch.float32, torch.float64], "dtype must be float32 or float64"
