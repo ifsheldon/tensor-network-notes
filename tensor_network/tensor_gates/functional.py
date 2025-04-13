@@ -80,10 +80,10 @@ def apply_gate(*, quantum_state: torch.Tensor, gate: torch.Tensor, target_qubit:
 
 
 # %% ../../3-1.ipynb 3
-from typing import LiteralString
+from typing import Literal
 from ..utils import map_float_to_complex
 
-def pauli_operator(*, pauli: LiteralString['X', 'Y', 'Z', "ID"], 
+def pauli_operator(*, pauli: Literal['X', 'Y', 'Z', "ID"], 
                    double_precision: bool = False,
                    force_complex: bool = False) -> torch.Tensor:
     assert pauli in ['X', 'Y', 'Z', "ID"], f"Invalid Pauli operator: {pauli}"
@@ -118,10 +118,28 @@ def rotate(params: torch.Tensor) -> torch.Tensor:
     dtype = params.dtype
     assert dtype in [torch.float32, torch.float64], "params must be float32 or float64"
     gate_dtype = map_float_to_complex(dtype=dtype)
-    alpha, beta, delta, theta = params[0], params[1], params[2], params[3]
-    gate = torch.ones((2, 2), device=params.device, dtype=gate_dtype)
-    gate[0, 0] = torch.exp(1j * (delta - alpha / 2 - beta / 2)) * torch.cos(theta / 2)
-    gate[0, 1] = -torch.exp(1j * (delta - alpha / 2 + beta / 2)) * torch.sin(theta / 2)
-    gate[1, 0] = torch.exp(1j * (delta + alpha / 2 - beta / 2)) * torch.sin(theta / 2)
-    gate[1, 1] = torch.exp(1j * (delta + alpha / 2 + beta / 2)) * torch.cos(theta / 2)
+    beta, delta, ita, gamma = params[0], params[1], params[2], params[3]
+    # calculate the matrix for the beta terms
+    beta_coefficient_matrix = torch.tensor([[-0.5, -0.5],
+                                            [0.5, 0.5]], 
+                                            device=params.device, 
+                                            dtype=gate_dtype)
+    beta_matrix = beta_coefficient_matrix * beta
+    # calculate the matrix for the delta terms
+    delta_coefficient_matrix = beta_coefficient_matrix.T
+    delta_matrix = delta_coefficient_matrix * delta
+    # calculate the matrix for the gamma terms
+    gamma_2 = gamma / 2
+    gamma_coefficient_matrix_cosine = torch.eye(2, device=params.device, dtype=gate_dtype)
+    gamma_coefficient_matrix_sine = torch.tensor([[0, 1],
+                                                  [1, 0]], 
+                                                  device=params.device, 
+                                                  dtype=gate_dtype)
+    gamma_matrix = gamma_coefficient_matrix_cosine * torch.cos(gamma_2) + gamma_coefficient_matrix_sine * torch.sin(gamma_2)
+    # set the coefficient matrix in front of e
+    coefficient_matrix = torch.tensor([[1, -1], 
+                                       [1, 1]], 
+                                       device=params.device, 
+                                       dtype=gate_dtype)
+    gate = coefficient_matrix * torch.exp(1j * (ita + beta_matrix + delta_matrix)) * gamma_matrix
     return gate
