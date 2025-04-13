@@ -111,18 +111,47 @@ def pauli_operator(*, pauli: Literal['X', 'Y', 'Z', "ID"],
     else:
         raise Exception("Unreachable code")
 
+def _float_convert_to_tensor(value: float | torch.Tensor, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+    if isinstance(value, torch.Tensor):
+        return value
+    elif isinstance(value, float):
+        return torch.tensor(value, dtype=dtype, device=device)
+    else:
+        raise TypeError(f"Expected float or torch.Tensor, got {type(value)}")
 
-def rotate(params: torch.Tensor) -> torch.Tensor:
-    assert isinstance(params, torch.Tensor), "params must be a torch.Tensor"
-    assert params.shape == (4,), "params must be a 4-element vector"
-    dtype = params.dtype
-    assert dtype in [torch.float32, torch.float64], "params must be float32 or float64"
+def rotate(*, 
+            params_vec: torch.Tensor | None = None,
+            ita: torch.Tensor | float | None = None,
+            beta: torch.Tensor | float | None = None,
+            delta: torch.Tensor | float | None = None,
+            gamma: torch.Tensor | float | None = None,
+            dtype: torch.dtype | None = None,
+            device: torch.device | None = None) -> torch.Tensor:
+    assert params_vec is not None or (ita is not None and beta is not None and delta is not None and gamma is not None), "Either params_vec or ita, beta, delta, and gamma must be provided"
+    if params_vec is not None:
+        assert isinstance(params_vec, torch.Tensor), "params must be a torch.Tensor"
+        assert params_vec.shape == (4,), "params must be a 4-element vector"
+        dtype = params_vec.dtype if dtype is None else dtype
+        device = params_vec.device if device is None else device
+        assert dtype in [torch.float32, torch.float64], "params must be float32 or float64"
+    else:
+        ita = _float_convert_to_tensor(ita, device=device, dtype=dtype)
+        beta = _float_convert_to_tensor(beta, device=device, dtype=dtype)
+        delta = _float_convert_to_tensor(delta, device=device, dtype=dtype)
+        gamma = _float_convert_to_tensor(gamma, device=device, dtype=dtype)
+        assert ita.shape == beta.shape == delta.shape == gamma.shape == (), "ita, beta, delta, and gamma must be scalars"
+        assert ita.dtype == beta.dtype == delta.dtype == gamma.dtype, "ita, beta, delta, and gamma must have the same dtype"
+        assert ita.device == beta.device == delta.device == gamma.device, "ita, beta, delta, and gamma must have the same device"
+        dtype = ita.dtype if dtype is None else dtype
+        device = ita.device if device is None else device
+        assert dtype in [torch.float32, torch.float64], "ita, beta, delta, and gamma must be float32 or float64"
+    
     gate_dtype = map_float_to_complex(dtype=dtype)
-    beta, delta, ita, gamma = params[0], params[1], params[2], params[3]
+    beta, delta, ita, gamma = params_vec[0], params_vec[1], params_vec[2], params_vec[3]
     # calculate the matrix for the beta terms
     beta_coefficient_matrix = torch.tensor([[-0.5, -0.5],
                                             [0.5, 0.5]], 
-                                            device=params.device, 
+                                            device=device, 
                                             dtype=gate_dtype)
     beta_matrix = beta_coefficient_matrix * beta
     # calculate the matrix for the delta terms
@@ -130,16 +159,16 @@ def rotate(params: torch.Tensor) -> torch.Tensor:
     delta_matrix = delta_coefficient_matrix * delta
     # calculate the matrix for the gamma terms
     gamma_2 = gamma / 2
-    gamma_coefficient_matrix_cosine = torch.eye(2, device=params.device, dtype=gate_dtype)
+    gamma_coefficient_matrix_cosine = torch.eye(2, device=device, dtype=gate_dtype)
     gamma_coefficient_matrix_sine = torch.tensor([[0, 1],
                                                   [1, 0]], 
-                                                  device=params.device, 
+                                                  device=device, 
                                                   dtype=gate_dtype)
     gamma_matrix = gamma_coefficient_matrix_cosine * torch.cos(gamma_2) + gamma_coefficient_matrix_sine * torch.sin(gamma_2)
     # set the coefficient matrix in front of e
     coefficient_matrix = torch.tensor([[1, -1], 
                                        [1, 1]], 
-                                       device=params.device, 
+                                       device=device, 
                                        dtype=gate_dtype)
     gate = coefficient_matrix * torch.exp(1j * (ita + beta_matrix + delta_matrix)) * gamma_matrix
     return gate
