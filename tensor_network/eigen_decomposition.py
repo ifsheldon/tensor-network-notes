@@ -10,12 +10,28 @@ import matplotlib.pyplot as plt
 
 # %% ../1-6.ipynb 2
 def rand_hermitian_matrix(dim: int) -> torch.Tensor:
+    """
+    Generate a random Hermitian matrix of given dimension.
+    
+    Args:
+        dim (int): Dimension of the matrix.
+    Returns:
+        torch.Tensor: A Hermitian matrix of the specified dimension.
+    """
     H = torch.randn(dim, dim, dtype=torch.complex64)
     H = H + H.conj().t()
     return H
 
 #|export
 def rand_real_symmetric_matrix(dim: int) -> torch.Tensor:
+    """
+    Generate a random real symmetric matrix of given dimension.
+    
+    Args:
+        dim (int): Dimension of the matrix.
+    Returns:
+        torch.Tensor: A real symmetric matrix of the specified dimension.
+    """
     mat = torch.randn(dim, dim, dtype=torch.float32)
     mat = (mat + mat.t()) / 2
     return mat
@@ -27,9 +43,13 @@ def eigs_power(mat: torch.Tensor, which: str, v0=None) -> (torch.Tensor, torch.T
     ‘SM’ : Smallest (in magnitude) eigenvalues.
     ‘LA’ : Largest (algebraic) eigenvalues.
     ‘SA’ : Smallest (algebraic) eigenvalues.
-    :param mat: real symmetric matrix
-    :param which: one of ["la", "sa", "lm", "sm"]
-    :return: eigenvalue and eigenvector
+
+    Args:
+        mat (torch.Tensor): Input matrix (real symmetric).
+        which (str): Which eigenvalue to compute ('la', 'sa', 'lm', 'sm').
+        v0 (torch.Tensor, optional): Initial vector. If None, a random vector is generated.
+    Returns:
+        (torch.Tensor, torch.Tensor): The computed eigenvalue and corresponding eigenvector.
     """
     which = which.lower()
     H = mat

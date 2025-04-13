@@ -11,6 +11,17 @@ from einops import einsum
 
 # %% ../../2-5.ipynb 4
 def apply_gate(*, quantum_state: torch.Tensor, gate: torch.Tensor, target_qubit: int | List[int], control_qubit: int | List[int] | None = None) -> torch.Tensor:
+    """
+    Apply a quantum gate to a quantum state tensor. It can also be used to implement controlled gates by specifying control qubits.
+    
+    Args:
+        quantum_state (torch.Tensor): The quantum state tensor.
+        gate (torch.Tensor): The quantum gate tensor.
+        target_qubit (int | List[int]): The target qubit(s) to apply the gate to.
+        control_qubit (int | List[int] | None): The control qubit(s) for the gate. If None, no control qubits are used.
+    Returns:
+        torch.Tensor: The new quantum state tensor after applying the gate.
+    """
     check_state_tensor(quantum_state)
 
     # check types
@@ -86,6 +97,15 @@ from ..utils import map_float_to_complex
 def pauli_operator(*, pauli: Literal['X', 'Y', 'Z', "ID"], 
                    double_precision: bool = False,
                    force_complex: bool = False) -> torch.Tensor:
+    """
+    Returns the Pauli operator as a tensor.
+    Args:
+        pauli (str): The Pauli operator to return. Must be one of 'X', 'Y', 'Z', or 'ID'.
+        double_precision (bool): If True, use double precision for the tensor.
+        force_complex (bool): If True, force the tensor to be complex.
+    Returns:
+        torch.Tensor: The Pauli operator as a tensor.
+    """
     assert pauli in ['X', 'Y', 'Z', "ID"], f"Invalid Pauli operator: {pauli}"
     if double_precision:
         dtype_complex = torch.complex128
@@ -127,6 +147,20 @@ def rotate(*,
             gamma: torch.Tensor | float | None = None,
             dtype: torch.dtype | None = None,
             device: torch.device | None = None) -> torch.Tensor:
+    """
+    Returns the rotation gate as a tensor.
+    Args:
+        params_vec (torch.Tensor): A 4-element vector containing the parameters [ita, beta, delta, gamma].
+        ita (torch.Tensor | float | None): The first parameter of the rotation gate.
+        beta (torch.Tensor | float | None): The second parameter of the rotation gate.
+        delta (torch.Tensor | float | None): The third parameter of the rotation gate.
+        gamma (torch.Tensor | float | None): The fourth parameter of the rotation gate.
+        dtype (torch.dtype | None): The data type of the tensor.
+        device (torch.device | None): The device to create the tensor on.
+    Returns:
+        torch.Tensor: The rotation gate as a tensor.
+    """
+
     assert params_vec is not None or (ita is not None and beta is not None and delta is not None and gamma is not None), "Either params_vec or ita, beta, delta, and gamma must be provided"
     if params_vec is not None:
         assert isinstance(params_vec, torch.Tensor), "params must be a torch.Tensor"

@@ -12,6 +12,15 @@ import einops
 
 # %% ../1-8.ipynb 3
 def outer_product(vectors: List[torch.Tensor]) -> torch.Tensor:
+    """
+    Computes the outer product of a list of vectors.
+    Args:
+        vectors (List[torch.Tensor]): A list of 1D tensors (vectors).
+    Returns:
+        torch.Tensor: The outer product of the input vectors.
+    """
+    assert isinstance(vectors, list), "Input must be a list of tensors"
+    assert all(isinstance(v, torch.Tensor) for v in vectors), "All elements must be tensors"
     for i, v in enumerate(vectors):
         assert v.dim() == 1, f"Expected 1D tensor, got {v.dim()}D tensor at index {i}"
     num_vectors = len(vectors)
@@ -64,6 +73,17 @@ def rank1_decomposition(tensor: torch.Tensor,
                         num_iter: int = 10000,
                         stop_criterion: str = "zeta",
                         eps: float = 1e-14) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    """
+    Decomposes a tensor into a list of rank-1 tensors using the rank-1 decomposition algorithm based on optimization. This is my implementation.
+
+    Args:
+        tensor (torch.Tensor): The input tensor to be decomposed.
+        num_iter (int): The maximum number of iterations to perform.
+        stop_criterion (str): The stopping criterion for the algorithm. Can be "zeta" or "norms".
+        eps (float): The tolerance for convergence.
+    Returns:
+        Tuple[List[torch.Tensor], torch.Tensor]: A tuple containing the decomposed vectors and the zeta value.
+    """
     assert stop_criterion in ["zeta", "norms"]
     device = tensor.device
     t_shape = tensor.shape
@@ -118,6 +138,16 @@ def rank1_decomposition(tensor: torch.Tensor,
 
 
 def rank1_decomposition_gradient_based(tensor: torch.Tensor, num_iter: int = 1000, eps: float = 1e-14) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    """
+    Decomposes a tensor into a list of rank-1 tensors using gradient-based optimization. This is my implementation.
+
+    Args:
+        tensor (torch.Tensor): The input tensor to be decomposed.
+        num_iter (int): The maximum number of iterations to perform.
+        eps (float): The tolerance for convergence.
+    Returns:
+        Tuple[List[torch.Tensor], torch.Tensor]: A tuple containing the decomposed vectors and the zeta value.
+    """
     t_shape = tensor.shape
     decomposed_vecs = [torch.randn(d, dtype=tensor.dtype) for d in t_shape]
     decomposed_vecs = [v / v.norm() for v in decomposed_vecs]
@@ -146,6 +176,14 @@ def rank1_decomposition_gradient_based(tensor: torch.Tensor, num_iter: int = 100
 
 # %% ../1-8.ipynb 18
 def make_matrix(tensor: torch.Tensor, left_index: int) -> torch.Tensor:
+    """
+    Converts a tensor into a matrix by moving the specified index to the front and reshaping the tensor.
+    Args:
+        tensor (torch.Tensor): The input tensor to be converted.
+        left_index (int): The index to be moved to the front, as the row index.
+    Returns:
+        torch.Tensor: The reshaped matrix.
+    """
     order = tensor.ndim
     assert order >= 2
     assert 0 <= left_index < order
@@ -154,7 +192,14 @@ def make_matrix(tensor: torch.Tensor, left_index: int) -> torch.Tensor:
     return t
 
 #|export
-def tucker_decomposition(tensor: torch.Tensor) -> (torch.Tensor, List[torch.Tensor], List[int]):
+def tucker_decomposition(tensor: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor], List[int]]:
+    """
+    Decomposes a tensor into a core tensor and a list of matrices using Tucker decomposition.
+    Args:
+        tensor (torch.Tensor): The input tensor to be decomposed.
+    Returns:
+        Tuple[torch.Tensor, List[torch.Tensor], List[int]]: A tuple containing the core tensor, a list of matrices, and a list of ranks.
+    """
     order = tensor.ndim
     assert order >= 2
     matrices_U = []
@@ -177,6 +222,14 @@ def tucker_decomposition(tensor: torch.Tensor) -> (torch.Tensor, List[torch.Tens
 
 #|export
 def reduced_matrix(core_tensor: torch.Tensor, n: int) -> torch.Tensor:
+    """
+    Computes the reduced matrix from the core tensor by multiplying it with its conjugate transpose.
+    Args:
+        core_tensor (torch.Tensor): The core tensor from Tucker decomposition.
+        n (int): The index to specify which mode corresponding to the nth qubit to reduce.
+    Returns:
+        torch.Tensor: The resulting reduced matrix.
+    """
     order = core_tensor.ndim
     assert order >= 2
     assert 0 <= n < order

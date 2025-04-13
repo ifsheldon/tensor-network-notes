@@ -8,6 +8,15 @@ import torch
 
 # %% ../1-4.ipynb 5
 def identity_tensor(order: int, dim: int, dtype: torch.dtype = torch.float32) -> torch.Tensor:
+    """
+    Create an identity tensor of given order and dimension.
+    Args:
+        order (int): The order of the tensor.
+        dim (int): The dimension of the tensor.
+        dtype (torch.dtype): The data type of the tensor. Default is torch.float32.
+    Returns:
+        torch.Tensor: The identity tensor of shape (dim, dim, ..., dim) with the specified order.
+    """
     dims = [dim] * order
     I = torch.zeros(*dims, dtype=dtype)
     for i in range(dim):
@@ -18,6 +27,14 @@ def identity_tensor(order: int, dim: int, dtype: torch.dtype = torch.float32) ->
 
 # %% ../3-1.ipynb 7
 def zeros_state(*, num_qubits: int, dtype: torch.dtype) -> torch.Tensor:
+    """
+    Returns the zero state as a tensor.
+    Args:
+        num_qubits (int): The number of qubits.
+        dtype (torch.dtype): The data type of the tensor.
+    Returns:
+        torch.Tensor: The zero state as a tensor.
+    """
     assert num_qubits > 0, "num_qubits must be positive"
     assert dtype in [torch.complex64, torch.complex128], "dtype must be complex64 or complex128"
     state = torch.zeros((2 ** num_qubits, ), dtype=dtype)
