@@ -50,4 +50,8 @@ d = { 'settings': { 'doc_baseurl': '/tensor-network',
                                       'tensor_network.utils.map_float_to_complex': ( 'utils.html#map_float_to_complex',
                                                                                      'tensor_network/utils.py'),
                                       'tensor_network.utils.unify_tensor_dtypes': ( 'utils.html#unify_tensor_dtypes',
-                                                                                    'tensor_network/utils.py')}}}
+                                                                                    'tensor_network/utils.py'),
+                                      'tensor_network.utils.view_gate_matrix_as_tensor': ( 'utils.html#view_gate_matrix_as_tensor',
+                                                                                           'tensor_network/utils.py'),
+                                      'tensor_network.utils.view_gate_tensor_as_matrix': ( 'utils.html#view_gate_tensor_as_matrix',
+                                                                                           'tensor_network/utils.py')}}}

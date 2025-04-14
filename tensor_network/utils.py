@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['iterable_have_common', 'inverse_permutation', 'check_state_tensor', 'check_quantum_gate', 'unify_tensor_dtypes',
-           'map_float_to_complex']
+           'map_float_to_complex', 'view_gate_tensor_as_matrix', 'view_gate_matrix_as_tensor']
 
 # %% ../utils.ipynb 0
 from typing import List, Tuple, Union
@@ -64,7 +64,8 @@ def check_quantum_gate(tensor: torch.Tensor, num_qubits: int):
         # in matrix form
         assert tensor.shape[0] == tensor.shape[1] == 2 ** num_qubits, f"gate must be a square matrix with dimensions 2^num_qubits, got {tensor.shape}"
     else:
-        assert tensor.ndim == 2 * num_qubits, f"gate must have 2 * num_qubits dimensions, got {tensor.ndim}"
+        assert tensor.ndim == 2 * num_qubits, f"gate tensor must have 2 * num_qubits dimensions, got {tensor.ndim}"
+        assert all(d == 2 for d in tensor.shape), "gate tensor must have all dimensions of size 2"
 
 def unify_tensor_dtypes(t1: torch.Tensor, t2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """
@@ -120,3 +121,39 @@ def map_float_to_complex(*, tensor: torch.Tensor | None = None, dtype: torch.dty
     if tensor is not None:
         return tensor.to(to_dtype)
     return to_dtype
+
+
+def view_gate_tensor_as_matrix(tensor: torch.Tensor, *, num_qubit: int | None = None) -> torch.Tensor:
+    """
+    Convert a tensor representing a quantum gate into a matrix form.
+    The tensor should have an even number of dimensions, each of size 2.
+    
+    Args:
+        tensor (torch.Tensor): The tensor representing the quantum gate.
+        num_qubit (int | None): The number of qubits the gate is acting on. If None, it is inferred from the tensor shape.
+    Returns:
+        torch.Tensor: The matrix form of the quantum gate tensor.
+    """
+    assert tensor.ndim % 2 == 0, "Tensor must have an even number of dimensions"
+    assert all(d == 2 for d in tensor.shape), "Tensor dimensions must be 2"
+    qubit_count = tensor.ndim // 2 if num_qubit is None else num_qubit
+    check_quantum_gate(tensor, qubit_count)
+    return tensor.view(2 ** qubit_count, 2 ** qubit_count)
+
+def view_gate_matrix_as_tensor(tensor: torch.Tensor, *, num_qubit: int | None = None) -> torch.Tensor:
+    """
+    Convert a matrix representing a quantum gate into a tensor form.
+    The matrix should have dimensions (2^n, 2^n) for some n.
+    
+    Args:
+        tensor (torch.Tensor): The matrix representing the quantum gate.
+        num_qubit (int | None): The number of qubits the gate is acting on. If None, it is inferred from the matrix shape.
+    Returns:
+        torch.Tensor: The tensor form of the quantum gate matrix.
+    """
+    assert tensor.ndim == 2, "Matrix must have 2 dimensions"
+    assert tensor.shape[0] == tensor.shape[1], "Matrix must be square"
+    qubit_count = int(tensor.shape[0].bit_length() - 1) if num_qubit is None else num_qubit
+    assert tensor.shape[0] == 2 ** qubit_count, f"Matrix size must be (2^q, 2^q) for q qubits, but got {tensor.shape}"
+    check_quantum_gate(tensor, qubit_count)
+    return tensor.view(*([2] * (qubit_count * 2)))
