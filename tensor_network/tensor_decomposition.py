@@ -35,6 +35,7 @@ def outer_product(vectors: List[torch.Tensor]) -> torch.Tensor:
 # %% ../1-8.ipynb 6
 def rank1_tc(x, v=None, it_time=10000, tol=1e-14):
     import torch as tc
+
     # From: https://github.com/ranshiju/Python-for-Tensor-Network-Tutorial/blob/4c89b0766159d3495122ec39339e7bd019f10fdf/Library/MathFun.py#L231
     # 初始化向量组v
     if v is None:
@@ -68,11 +69,10 @@ def rank1_tc(x, v=None, it_time=10000, tol=1e-14):
     return v, norm1
 
 
-#|export
-def rank1_decomposition(tensor: torch.Tensor,
-                        num_iter: int = 10000,
-                        stop_criterion: str = "zeta",
-                        eps: float = 1e-14) -> Tuple[List[torch.Tensor], torch.Tensor]:
+# |export
+def rank1_decomposition(
+    tensor: torch.Tensor, num_iter: int = 10000, stop_criterion: str = "zeta", eps: float = 1e-14
+) -> Tuple[List[torch.Tensor], torch.Tensor]:
     """
     Decomposes a tensor into a list of rank-1 tensors using the rank-1 decomposition algorithm based on optimization. This is my implementation.
 
@@ -90,12 +90,12 @@ def rank1_decomposition(tensor: torch.Tensor,
     k = len(t_shape)
     decomposed_vecs = [torch.randn(d, dtype=tensor.dtype, device=device) for d in t_shape]
     decomposed_vecs = [v / v.norm() for v in decomposed_vecs]
-    zeta = 1.
+    zeta = 1.0
 
     if stop_criterion == "zeta":
         for _ in tqdm(range(num_iter)):
             for idx in range(k):
-                vs = decomposed_vecs[:idx] + decomposed_vecs[idx + 1:]
+                vs = decomposed_vecs[:idx] + decomposed_vecs[idx + 1 :]
                 vs = [v.conj() for v in vs]
                 outer = outer_product(vs).unsqueeze(idx)
                 sum_indices = list(range(k))
@@ -117,7 +117,7 @@ def rank1_decomposition(tensor: torch.Tensor,
         for _ in tqdm(range(num_iter)):
             for idx in range(k):
                 # contraction
-                vs = decomposed_vecs[:idx] + decomposed_vecs[idx + 1:]
+                vs = decomposed_vecs[:idx] + decomposed_vecs[idx + 1 :]
                 vs = [v.conj() for v in vs]
                 outer = outer_product(vs).unsqueeze(idx)
                 sum_indices = list(range(k))
@@ -137,7 +137,9 @@ def rank1_decomposition(tensor: torch.Tensor,
     return decomposed_vecs, zeta
 
 
-def rank1_decomposition_gradient_based(tensor: torch.Tensor, num_iter: int = 1000, eps: float = 1e-14) -> Tuple[List[torch.Tensor], torch.Tensor]:
+def rank1_decomposition_gradient_based(
+    tensor: torch.Tensor, num_iter: int = 1000, eps: float = 1e-14
+) -> Tuple[List[torch.Tensor], torch.Tensor]:
     """
     Decomposes a tensor into a list of rank-1 tensors using gradient-based optimization. This is my implementation.
 
@@ -191,8 +193,11 @@ def make_matrix(tensor: torch.Tensor, left_index: int) -> torch.Tensor:
     t = t.reshape(t.shape[0], -1)
     return t
 
-#|export
-def tucker_decomposition(tensor: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor], List[int]]:
+
+# |export
+def tucker_decomposition(
+    tensor: torch.Tensor,
+) -> Tuple[torch.Tensor, List[torch.Tensor], List[int]]:
     """
     Decomposes a tensor into a core tensor and a list of matrices using Tucker decomposition.
     Args:
@@ -220,7 +225,8 @@ def tucker_decomposition(tensor: torch.Tensor) -> Tuple[torch.Tensor, List[torch
 
     return core_tensor, matrices_U, ranks
 
-#|export
+
+# |export
 def reduced_matrix(core_tensor: torch.Tensor, n: int) -> torch.Tensor:
     """
     Computes the reduced matrix from the core tensor by multiplying it with its conjugate transpose.

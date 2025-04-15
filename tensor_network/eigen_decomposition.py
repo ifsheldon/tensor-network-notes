@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 def rand_hermitian_matrix(dim: int) -> torch.Tensor:
     """
     Generate a random Hermitian matrix of given dimension.
-    
+
     Args:
         dim (int): Dimension of the matrix.
     Returns:
@@ -22,11 +22,12 @@ def rand_hermitian_matrix(dim: int) -> torch.Tensor:
     H = H + H.conj().t()
     return H
 
-#|export
+
+# |export
 def rand_real_symmetric_matrix(dim: int) -> torch.Tensor:
     """
     Generate a random real symmetric matrix of given dimension.
-    
+
     Args:
         dim (int): Dimension of the matrix.
     Returns:
@@ -77,7 +78,7 @@ def eigs_power(mat: torch.Tensor, which: str, v0=None) -> (torch.Tensor, torch.T
     else:
         v = v0
 
-    norm = 1.
+    norm = 1.0
     for _ in tqdm(range(ITER_NUM)):
         v_next = rho @ v
         norm = v_next.norm()
@@ -97,12 +98,17 @@ def eigs_power(mat: torch.Tensor, which: str, v0=None) -> (torch.Tensor, torch.T
     elif which == "sa":
         return -torch.log(norm) / TAU, scaled_eigenvector / scaled_eigenvector.norm()
     elif which == "lm":
-        return sign * torch.sqrt(torch.log(norm) / TAU), scaled_eigenvector / scaled_eigenvector.norm()
+        return sign * torch.sqrt(
+            torch.log(norm) / TAU
+        ), scaled_eigenvector / scaled_eigenvector.norm()
     elif which == "sm":
-        return sign * torch.sqrt(-torch.log(norm) / TAU), scaled_eigenvector / scaled_eigenvector.norm()
+        return sign * torch.sqrt(
+            -torch.log(norm) / TAU
+        ), scaled_eigenvector / scaled_eigenvector.norm()
 
-#|export
-def eigs_power_ref(mat, v0=None, which='la', tau=0.01, it_time=2000, tol=1e-14):
+
+# |export
+def eigs_power_ref(mat, v0=None, which="la", tau=0.01, it_time=2000, tol=1e-14):
     """
     From https://github.com/ranshiju/Python-for-Tensor-Network-Tutorial/blob/4c89b0766159d3495122ec39339e7bd019f10fdf/Library/ExampleFun.py#L4
 
@@ -125,11 +131,11 @@ def eigs_power_ref(mat, v0=None, which='la', tau=0.01, it_time=2000, tol=1e-14):
 
     # 根据which给出投影矩阵
     tau = abs(tau)
-    if which.lower() == 'la':
+    if which.lower() == "la":
         rho = tc.matrix_exp(tau * mat)
-    elif which.lower() == 'sa':
+    elif which.lower() == "sa":
         rho = tc.matrix_exp(-tau * mat)
-    elif which.lower() == 'lm':
+    elif which.lower() == "lm":
         rho = tc.matrix_exp(tau * (tc.matrix_power(mat, 2)))
     else:  # which.lower() == 'sm'
         rho = tc.matrix_exp(-tau * (tc.matrix_power(mat, 2)))
@@ -150,12 +156,11 @@ def eigs_power_ref(mat, v0=None, which='la', tau=0.01, it_time=2000, tol=1e-14):
     v1 = mat.matmul(v0)
     sign = tc.sign(v0.dot(v1))
 
-    if which.lower() == 'la':
-        return tc.log(lm)/tau, v1/v1.norm()
-    elif which.lower() == 'sa':
-        return -tc.log(lm)/tau, v1/v1.norm()
-    elif which.lower() == 'lm':
-        return sign * tc.sqrt(tc.log(lm)/tau), v1/v1.norm()
+    if which.lower() == "la":
+        return tc.log(lm) / tau, v1 / v1.norm()
+    elif which.lower() == "sa":
+        return -tc.log(lm) / tau, v1 / v1.norm()
+    elif which.lower() == "lm":
+        return sign * tc.sqrt(tc.log(lm) / tau), v1 / v1.norm()
     else:  # which.lower() == 'sm'
-        return sign * tc.sqrt(-tc.log(lm)/tau), v1/v1.norm()
-
+        return sign * tc.sqrt(-tc.log(lm) / tau), v1 / v1.norm()

@@ -21,7 +21,7 @@ def identity_tensor(order: int, dim: int, dtype: torch.dtype = torch.float32) ->
     I = torch.zeros(*dims, dtype=dtype)
     for i in range(dim):
         indices = [i] * order
-        I[tuple(indices)] = 1.
+        I[tuple(indices)] = 1.0
 
     return I
 
@@ -37,7 +37,7 @@ def zeros_state(*, num_qubits: int, dtype: torch.dtype) -> torch.Tensor:
     """
     assert num_qubits > 0, "num_qubits must be positive"
     assert dtype in [torch.complex64, torch.complex128], "dtype must be complex64 or complex128"
-    state = torch.zeros((2 ** num_qubits, ), dtype=dtype)
+    state = torch.zeros((2**num_qubits,), dtype=dtype)
     state[0] = 1.0
     shape = [2] * num_qubits
     state = state.reshape(shape)

@@ -8,20 +8,28 @@ import torch
 from torch import nn
 from . import functional
 from typing import List, Literal
-from ..utils import check_quantum_gate, view_gate_tensor_as_matrix, view_gate_matrix_as_tensor
+from tensor_network.utils import (
+    check_quantum_gate,
+    view_gate_tensor_as_matrix,
+    view_gate_matrix_as_tensor,
+)
 
 # %% ../../3-4.ipynb 2
 class QuantumGate(nn.Module):
     """
     Base class for quantum gates.
     """
-    def __init__(self, *, 
-                 gate: torch.Tensor | None = None,
-                 gate_params: nn.ParameterDict | torch.Tensor | None = None,
-                 requires_grad: bool | None = None,
-                 gate_name: str | None = None,
-                 target_qubit: int | List[int]| None = None,
-                 control_qubit: int | List[int] | None = None):
+
+    def __init__(
+        self,
+        *,
+        gate: torch.Tensor | None = None,
+        gate_params: nn.ParameterDict | torch.Tensor | None = None,
+        requires_grad: bool | None = None,
+        gate_name: str | None = None,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+    ):
         """
         Args:
             gate: The gate tensor. If None, gate_params must be specified.
@@ -32,12 +40,16 @@ class QuantumGate(nn.Module):
             control_qubit: The control qubit(s) for controlled gates.
         """
         super().__init__()
-        assert gate is not None or gate_params is not None, "Either gate or gate_params must be specified"
+        assert gate is not None or gate_params is not None, (
+            "Either gate or gate_params must be specified"
+        )
         if target_qubit is not None:
             assert isinstance(target_qubit, (int, list)), "target_qubit must be int or list of int"
         if control_qubit is not None:
-            assert isinstance(control_qubit, (int, list)), "control_qubit must be int or list of int"
-        
+            assert isinstance(control_qubit, (int, list)), (
+                "control_qubit must be int or list of int"
+            )
+
         if gate is not None:
             check_quantum_gate(gate)
             requires_grad = gate.requires_grad if requires_grad is None else requires_grad
@@ -46,36 +58,53 @@ class QuantumGate(nn.Module):
         else:
             self.gate = None
             if isinstance(gate_params, torch.Tensor):
-                self.gate_params = nn.Parameter(gate_params, requires_grad=requires_grad if requires_grad is not None else gate_params.requires_grad)
+                self.gate_params = nn.Parameter(
+                    gate_params,
+                    requires_grad=requires_grad
+                    if requires_grad is not None
+                    else gate_params.requires_grad,
+                )
             else:
-                assert isinstance(gate_params, nn.ParameterDict), "gate_params must be a torch.Tensor or nn.ParameterDict"
+                assert isinstance(gate_params, nn.ParameterDict), (
+                    "gate_params must be a torch.Tensor or nn.ParameterDict"
+                )
                 self.gate_params = gate_params
         self.gate_name = gate_name
         self.target_qubit = target_qubit
         self.control_qubit = control_qubit
 
-    def forward(self, tensor: torch.Tensor, *, 
-                target_qubit: int | List[int] | None = None, 
-                control_qubit: int | List[int] | None = None) -> torch.Tensor:
+    def forward(
+        self,
+        tensor: torch.Tensor,
+        *,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+    ) -> torch.Tensor:
         target_qubit = self.target_qubit if target_qubit is None else target_qubit
         control_qubit = self.control_qubit if control_qubit is None else control_qubit
         assert target_qubit is not None, "target_qubit must be specified or set in the gate"
-        return functional.apply_gate(quantum_state=tensor, 
-                                     gate=self.gate, 
-                                     target_qubit=target_qubit, 
-                                     control_qubit=control_qubit)
+        return functional.apply_gate(
+            quantum_state=tensor,
+            gate=self.gate,
+            target_qubit=target_qubit,
+            control_qubit=control_qubit,
+        )
+
 
 class PauliGate(QuantumGate):
     """
     Pauli gates (X, Y, Z, ID) are single-qubit gates that can be applied to a quantum state.
     """
 
-    def __init__(self, *, 
-                 gate_name: Literal["X", "Y", "Z", "ID"], 
-                 target_qubit: int | List[int]| None = None,
-                 control_qubit: int | List[int] | None = None,
-                 double_precision: bool = False,
-                 force_complex: bool = False):
+    def __init__(
+        self,
+        *,
+        gate_name: Literal["X", "Y", "Z", "ID"],
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+        double_precision: bool = False,
+        force_complex: bool = False,
+    ):
         """
         Args:
             gate_name: Name of the Pauli gate. Must be one of "X", "Y", "Z", or "ID".
@@ -85,37 +114,45 @@ class PauliGate(QuantumGate):
             force_complex: If True, force the gate tensor to be complex.
         """
         self.is_identity = gate_name == "ID"
-        gate = functional.pauli_operator(pauli=gate_name, 
-                                         double_precision=double_precision, 
-                                         force_complex=force_complex)
-        super().__init__(gate=gate, 
-                         requires_grad=False, 
-                         gate_name=gate_name, 
-                         target_qubit=target_qubit, 
-                         control_qubit=control_qubit)
-        
-    def forward(self, tensor: torch.Tensor, *, 
-                target_qubit: int | List[int] | None = None, 
-                control_qubit: int | List[int] | None = None) -> torch.Tensor:
+        gate = functional.pauli_operator(
+            pauli=gate_name, double_precision=double_precision, force_complex=force_complex
+        )
+        super().__init__(
+            gate=gate,
+            requires_grad=False,
+            gate_name=gate_name,
+            target_qubit=target_qubit,
+            control_qubit=control_qubit,
+        )
+
+    def forward(
+        self,
+        tensor: torch.Tensor,
+        *,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+    ) -> torch.Tensor:
         if self.is_identity:
             return tensor
         else:
             return super().forward(tensor, target_qubit=target_qubit, control_qubit=control_qubit)
-        
+
 
 class ADQCGate(QuantumGate):
-
     """
     Automatically differentiable quantum circuit gate (ADQC) is a trainable quantum gate.
     """
 
-    def __init__(self, *, 
-                 target_qubit_num: int | None = None, 
-                 target_qubit: int | List[int] | None = None,
-                 control_qubit: int | List[int] | None = None,
-                 gate_name: str | None = None,
-                 double_precision: bool = False,
-                 identity_init: bool = False):
+    def __init__(
+        self,
+        *,
+        target_qubit_num: int | None = None,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+        gate_name: str | None = None,
+        double_precision: bool = False,
+        identity_init: bool = False,
+    ):
         """
         Args:
             target_qubit_num: Number of target qubits.
@@ -125,17 +162,23 @@ class ADQCGate(QuantumGate):
             double_precision: If True, use double precision for the gate tensor.
             identity_init: If True, initialize the gate tensor with identity matrix + a bit random noise.
         """
-        
+
         if target_qubit_num is None:
-            assert target_qubit is not None, "target_qubit_num must be specified if target_qubit is None"
+            assert target_qubit is not None, (
+                "target_qubit_num must be specified if target_qubit is None"
+            )
             target_qubit_num = 1 if isinstance(target_qubit, int) else len(target_qubit)
         else:
             tq_num = 1 if isinstance(target_qubit, int) else len(target_qubit)
-            assert tq_num == target_qubit_num, "target_qubit_num must be equal to the length of target_qubit"
-                
+            assert tq_num == target_qubit_num, (
+                "target_qubit_num must be equal to the length of target_qubit"
+            )
+
         gate_shape = [2] * (2 * target_qubit_num)
-        latent_gate_tensor = torch.randn(*gate_shape, dtype=torch.complex128 if double_precision else torch.complex64)
-        
+        latent_gate_tensor = torch.randn(
+            *gate_shape, dtype=torch.complex128 if double_precision else torch.complex64
+        )
+
         if identity_init:
             P, S, Q = torch.linalg.svd(view_gate_tensor_as_matrix(latent_gate_tensor))
             S_new = torch.ones_like(S) + 0.001 * torch.randn_like(S)
@@ -143,33 +186,41 @@ class ADQCGate(QuantumGate):
             latent_gate_matrix = P @ (S_new * Q)
             latent_gate_tensor = view_gate_matrix_as_tensor(latent_gate_matrix)
 
-        super().__init__(gate_params=latent_gate_tensor, 
-                         requires_grad=True, 
-                         gate_name=gate_name, 
-                         target_qubit=target_qubit, 
-                         control_qubit=control_qubit)
-        
-    def forward(self, tensor: torch.Tensor, *, 
-                target_qubit: int | List[int] | None = None, 
-                control_qubit: int | List[int] | None = None) -> torch.Tensor:
+        super().__init__(
+            gate_params=latent_gate_tensor,
+            requires_grad=True,
+            gate_name=gate_name,
+            target_qubit=target_qubit,
+            control_qubit=control_qubit,
+        )
+
+    def forward(
+        self,
+        tensor: torch.Tensor,
+        *,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+    ) -> torch.Tensor:
         target_qubit = target_qubit if self.target_qubit is None else self.target_qubit
         control_qubit = control_qubit if self.control_qubit is None else self.control_qubit
         assert target_qubit is not None, "target_qubit must be specified or set in the gate"
         P, _S, Q = torch.linalg.svd(view_gate_tensor_as_matrix(self.gate_params))
         gate_matrix = P @ Q
         gate = view_gate_matrix_as_tensor(gate_matrix)
-        return functional.apply_gate(quantum_state=tensor,
-                                        gate=gate, 
-                                        target_qubit=target_qubit, 
-                                        control_qubit=control_qubit)
-                                        
+        return functional.apply_gate(
+            quantum_state=tensor, gate=gate, target_qubit=target_qubit, control_qubit=control_qubit
+        )
+
 
 class RotateGate(QuantumGate):
-    def __init__(self, *, 
-                 gate_name: str | None = None, 
-                 target_qubit: int | List[int] | None = None, 
-                 control_qubit: int | List[int] | None = None,
-                 double_precision: bool = False):
+    def __init__(
+        self,
+        *,
+        gate_name: str | None = None,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+        double_precision: bool = False,
+    ):
         """
         Args:
             gate_name: Name of the gate.
@@ -177,25 +228,33 @@ class RotateGate(QuantumGate):
             control_qubit: The control qubit(s) for controlled gates.
             double_precision: If True, use double precision for the gate tensor.
         """
-        
-        dtype = torch.float64 if double_precision else torch.float32
-        
-        params = nn.ParameterDict({
-            "ita": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
-            "beta": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
-            "delta": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
-            "gamma": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
-        })
 
-        super().__init__(gate_params=params, 
-                         requires_grad=True, 
-                         gate_name=gate_name, 
-                         target_qubit=target_qubit, 
-                         control_qubit=control_qubit)
-        
-    def forward(self, tensor: torch.Tensor, *,
-                target_qubit: int | List[int] | None = None, 
-                control_qubit: int | List[int] | None = None) -> torch.Tensor:
+        dtype = torch.float64 if double_precision else torch.float32
+
+        params = nn.ParameterDict(
+            {
+                "ita": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
+                "beta": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
+                "delta": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
+                "gamma": nn.Parameter(torch.randn((), dtype=dtype), requires_grad=True),
+            }
+        )
+
+        super().__init__(
+            gate_params=params,
+            requires_grad=True,
+            gate_name=gate_name,
+            target_qubit=target_qubit,
+            control_qubit=control_qubit,
+        )
+
+    def forward(
+        self,
+        tensor: torch.Tensor,
+        *,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+    ) -> torch.Tensor:
         target_qubit = self.target_qubit if target_qubit is None else target_qubit
         control_qubit = self.control_qubit if control_qubit is None else control_qubit
         assert target_qubit is not None, "target_qubit must be specified or set in the gate"
@@ -203,10 +262,11 @@ class RotateGate(QuantumGate):
             ita=self.gate_params["ita"],
             beta=self.gate_params["beta"],
             delta=self.gate_params["delta"],
-            gamma=self.gate_params["gamma"]
+            gamma=self.gate_params["gamma"],
         )
-        return functional.apply_gate(quantum_state=tensor, 
-                                     gate=rotate_gate, 
-                                     target_qubit=target_qubit, 
-                                     control_qubit=control_qubit)
-
+        return functional.apply_gate(
+            quantum_state=tensor,
+            gate=rotate_gate,
+            target_qubit=target_qubit,
+            control_qubit=control_qubit,
+        )

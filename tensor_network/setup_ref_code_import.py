@@ -5,11 +5,13 @@ __all__ = ['cwd', 'reference_code_path']
 
 # %% ../import_reference.ipynb 0
 import sys
-import os 
+import os
 
 # get cwd
 cwd = os.getcwd()
 reference_code_path = os.path.join(cwd, "reference_code")
 if reference_code_path not in sys.path:
     sys.path.append(reference_code_path)
-    print(f"From setup_ref_code_import:\n  Added {reference_code_path=} to sys.path.\n  You can import the reference code now.")
+    print(
+        f"From setup_ref_code_import:\n  Added {reference_code_path=} to sys.path.\n  You can import the reference code now."
+    )
