@@ -19,4 +19,9 @@ dev = [
     "jupyterlab>=4.3.6",
     "nbdev>=2.3.37",
     "pytest>=8.3.5",
+    "ruff>=0.11.5",
 ]
+
+[tool.ruff]
+extend-exclude = ["tensor_network", "setup.py"]
+line-length = 100
