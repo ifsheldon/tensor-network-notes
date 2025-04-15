@@ -168,6 +168,7 @@ def rotate(*,
         dtype = params_vec.dtype if dtype is None else dtype
         device = params_vec.device if device is None else device
         assert dtype in [torch.float32, torch.float64], "params must be float32 or float64"
+        beta, delta, ita, gamma = params_vec[0], params_vec[1], params_vec[2], params_vec[3]
     else:
         ita = _float_convert_to_tensor(ita, device=device, dtype=dtype)
         beta = _float_convert_to_tensor(beta, device=device, dtype=dtype)
@@ -181,7 +182,6 @@ def rotate(*,
         assert dtype in [torch.float32, torch.float64], "ita, beta, delta, and gamma must be float32 or float64"
     
     gate_dtype = map_float_to_complex(dtype=dtype)
-    beta, delta, ita, gamma = params_vec[0], params_vec[1], params_vec[2], params_vec[3]
     # calculate the matrix for the beta terms
     beta_coefficient_matrix = torch.tensor([[-0.5, -0.5],
                                             [0.5, 0.5]], 
