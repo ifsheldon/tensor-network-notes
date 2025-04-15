@@ -11,9 +11,19 @@ This is a [`uv`](https://github.com/astral-sh/uv) project. Setting up the enviro
 
 ## Run Tools
 
-* JupyterLab: `uv run jupyter lab`
-* nbdev: `uv run nbdev_*`
-    * To export and sync code from a notebook to `tensor_network` package, run `uv run nbdev_export`
+We use `poe` to run tools. Available tools are:
+* `lab`: run Jupyter Lab
+* `sync`: sync the code in notebooks to the `tensor_network` package
+* `format`: format the code in notebooks
+* `precommit`: run pre-commit hooks
+
+Sample usage:
+```shell
+# if your shell detects venvs automatically, you can run poe directly
+poe lab
+# if your shell does not detect venvs automatically, you can run uv run poe directly
+uv run poe lab
+```
 
 ## Contribution
 

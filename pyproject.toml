@@ -18,6 +18,7 @@ dev = [
     "ipywidgets>=8.1.5",
     "jupyterlab>=4.3.6",
     "nbdev>=2.3.37",
+    "poethepoet>=0.33.1",
     "pytest>=8.3.5",
     "ruff>=0.11.5",
 ]
@@ -25,3 +26,9 @@ dev = [
 [tool.ruff]
 extend-exclude = ["tensor_network", "setup.py"]
 line-length = 100
+
+[tool.poe.tasks]
+format = "uv run ruff format"
+sync = "uv run nbdev_export"
+precommit = ["format", "sync"]
+lab = "uv run jupyter lab"
