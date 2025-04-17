@@ -23,6 +23,7 @@ class QuantumGate(nn.Module):
     def __init__(
         self,
         *,
+        batched_input: bool,
         gate: torch.Tensor | None = None,
         gate_params: nn.ParameterDict | torch.Tensor | None = None,
         requires_grad: bool | None = None,
@@ -32,11 +33,12 @@ class QuantumGate(nn.Module):
     ):
         """
         Args:
+            batched_input: Whether the input is batched.
             gate: The gate tensor. If None, gate_params must be specified.
             gate_params: The parameters of the gate. If None, gate must be specified.
             requires_grad: If True, the gate tensor will be a trainable parameter.
             gate_name: Name of the gate.
-            target_qubit: The qubit(s) to which the gate is applied.
+            target_qubit: The qubit(s) to which the gate is applied. If None, this should be set in the forward method.
             control_qubit: The control qubit(s) for controlled gates.
         """
         super().__init__()
@@ -72,6 +74,7 @@ class QuantumGate(nn.Module):
         self.gate_name = gate_name
         self.target_qubit = target_qubit
         self.control_qubit = control_qubit
+        self.batched_input = batched_input
 
     def forward(
         self,
@@ -83,12 +86,20 @@ class QuantumGate(nn.Module):
         target_qubit = self.target_qubit if target_qubit is None else target_qubit
         control_qubit = self.control_qubit if control_qubit is None else control_qubit
         assert target_qubit is not None, "target_qubit must be specified or set in the gate"
-        return functional.apply_gate(
-            quantum_state=tensor,
-            gate=self.gate,
-            target_qubit=target_qubit,
-            control_qubit=control_qubit,
-        )
+        if self.batched_input:
+            return functional.apply_gate_batched(
+                quantum_states=tensor,
+                gate=self.gate,
+                target_qubit=target_qubit,
+                control_qubit=control_qubit,
+            )
+        else:
+            return functional.apply_gate(
+                quantum_state=tensor,
+                gate=self.gate,
+                target_qubit=target_qubit,
+                control_qubit=control_qubit,
+            )
 
 
 class PauliGate(QuantumGate):
@@ -100,6 +111,7 @@ class PauliGate(QuantumGate):
         self,
         *,
         gate_name: Literal["X", "Y", "Z", "ID"],
+        batched_input: bool,
         target_qubit: int | List[int] | None = None,
         control_qubit: int | List[int] | None = None,
         double_precision: bool = False,
@@ -108,7 +120,8 @@ class PauliGate(QuantumGate):
         """
         Args:
             gate_name: Name of the Pauli gate. Must be one of "X", "Y", "Z", or "ID".
-            target_qubit: The qubit(s) to which the gate is applied.
+            batched_input: Whether the input is batched.
+            target_qubit: The qubit(s) to which the gate is applied. If not specified, this should be set in the forward method.
             control_qubit: The control qubit(s) for controlled gates.
             double_precision: If True, use double precision for the gate tensor.
             force_complex: If True, force the gate tensor to be complex.
@@ -123,6 +136,7 @@ class PauliGate(QuantumGate):
             gate_name=gate_name,
             target_qubit=target_qubit,
             control_qubit=control_qubit,
+            batched_input=batched_input,
         )
 
     def forward(
@@ -146,6 +160,7 @@ class ADQCGate(QuantumGate):
     def __init__(
         self,
         *,
+        batched_input: bool,
         target_qubit_num: int | None = None,
         target_qubit: int | List[int] | None = None,
         control_qubit: int | List[int] | None = None,
@@ -155,6 +170,7 @@ class ADQCGate(QuantumGate):
     ):
         """
         Args:
+            batched_input: Whether the input is batched.
             target_qubit_num: Number of target qubits.
             target_qubit: The qubit(s) to which the gate is applied.
             control_qubit: The control qubit(s) for controlled gates.
@@ -192,6 +208,7 @@ class ADQCGate(QuantumGate):
             gate_name=gate_name,
             target_qubit=target_qubit,
             control_qubit=control_qubit,
+            batched_input=batched_input,
         )
 
     def forward(
@@ -207,15 +224,27 @@ class ADQCGate(QuantumGate):
         P, _S, Q = torch.linalg.svd(view_gate_tensor_as_matrix(self.gate_params))
         gate_matrix = P @ Q
         gate = view_gate_matrix_as_tensor(gate_matrix)
-        return functional.apply_gate(
-            quantum_state=tensor, gate=gate, target_qubit=target_qubit, control_qubit=control_qubit
-        )
+        if self.batched_input:
+            return functional.apply_gate_batched(
+                quantum_states=tensor,
+                gate=gate,
+                target_qubit=target_qubit,
+                control_qubit=control_qubit,
+            )
+        else:
+            return functional.apply_gate(
+                quantum_state=tensor,
+                gate=gate,
+                target_qubit=target_qubit,
+                control_qubit=control_qubit,
+            )
 
 
 class RotateGate(QuantumGate):
     def __init__(
         self,
         *,
+        batched_input: bool,
         gate_name: str | None = None,
         target_qubit: int | List[int] | None = None,
         control_qubit: int | List[int] | None = None,
@@ -223,8 +252,9 @@ class RotateGate(QuantumGate):
     ):
         """
         Args:
+            batched_input: Whether the input is batched.
             gate_name: Name of the gate.
-            target_qubit: The qubit(s) to which the gate is applied.
+            target_qubit: The qubit(s) to which the gate is applied. If not specified, this should be set in the forward method.
             control_qubit: The control qubit(s) for controlled gates.
             double_precision: If True, use double precision for the gate tensor.
         """
@@ -246,6 +276,7 @@ class RotateGate(QuantumGate):
             gate_name=gate_name,
             target_qubit=target_qubit,
             control_qubit=control_qubit,
+            batched_input=batched_input,
         )
 
     def forward(
@@ -264,9 +295,17 @@ class RotateGate(QuantumGate):
             delta=self.gate_params["delta"],
             gamma=self.gate_params["gamma"],
         )
-        return functional.apply_gate(
-            quantum_state=tensor,
-            gate=rotate_gate,
-            target_qubit=target_qubit,
-            control_qubit=control_qubit,
-        )
+        if self.batched_input:
+            return functional.apply_gate_batched(
+                quantum_states=tensor,
+                gate=rotate_gate,
+                target_qubit=target_qubit,
+                control_qubit=control_qubit,
+            )
+        else:
+            return functional.apply_gate(
+                quantum_state=tensor,
+                gate=rotate_gate,
+                target_qubit=target_qubit,
+                control_qubit=control_qubit,
+            )
