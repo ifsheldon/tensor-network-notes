@@ -287,8 +287,7 @@ def apply_gate_batched(
 
     quantum_states, gate = unify_tensor_dtypes(quantum_states, gate)
     # permute the batch dim to the last dim
-    permute_batch_dim = list(range(1, quantum_states.ndim)) + [0]
-    quantum_states = torch.permute(quantum_states, permute_batch_dim)  # (*qubit_shapes, batch_dim)
+    quantum_states = torch.movedim(quantum_states, 0, -1)  # (*qubit_shapes, batch_dim)
     batch_dim_idx = quantum_states.ndim - 1
 
     # check indices
@@ -347,8 +346,7 @@ def apply_gate_batched(
     # inverse the previous permutations
     inverse_permute_qubit_dims = inverse_permutation(permute_qubit_dims)
     final_state = final_state.permute(inverse_permute_qubit_dims)  # (*qubit_shapes, batch_dim)
-    inverse_permute_batch_dim = inverse_permutation(permute_batch_dim)
-    final_state = final_state.permute(inverse_permute_batch_dim)  # (batch_dim, *qubit_shapes)
+    final_state = torch.movedim(final_state, -1, 0)  # (batch_dim, *qubit_shapes)
     return final_state
 
 
