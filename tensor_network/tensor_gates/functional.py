@@ -55,6 +55,10 @@ def apply_gate(
 
     num_qubits = quantum_state.ndim
     num_target_qubit = len(target_qubit)
+    num_control_qubit = len(control_qubit)
+    assert num_qubits >= num_target_qubit + num_control_qubit, (
+        "number of qubits must be greater than or equal to the number of target qubits and control qubits"
+    )
     check_quantum_gate(gate, num_target_qubit)
 
     quantum_state, gate = unify_tensor_dtypes(quantum_state, gate)
@@ -283,6 +287,10 @@ def apply_gate_batched(
     batch_num = quantum_states.shape[0]
     num_qubits = quantum_states.ndim - 1  # because of batch dimension
     num_target_qubit = len(target_qubit)
+    num_control_qubit = len(control_qubit)
+    assert num_qubits >= num_target_qubit + num_control_qubit, (
+        "number of qubits must be greater than or equal to the number of target qubits and control qubits"
+    )
     check_quantum_gate(gate, num_target_qubit)
 
     quantum_states, gate = unify_tensor_dtypes(quantum_states, gate)

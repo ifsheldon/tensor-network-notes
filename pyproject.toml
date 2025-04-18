@@ -8,6 +8,7 @@ dependencies = [
     "einops>=0.8.1",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
+    "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
     "torch>=2.6.0",
     "tqdm>=4.67.1",
