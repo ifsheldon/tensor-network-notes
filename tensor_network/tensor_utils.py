@@ -48,6 +48,17 @@ from typing import Tuple
 
 
 def normalize_tensor(tensor: torch.Tensor, dim: int | None = None) -> torch.Tensor:
+    """
+    Normalize a tensor to the range [0, 1].
+
+    Args:
+        tensor (torch.Tensor): The tensor to normalize.
+        dim (int | None, optional): The dimension along which to normalize.
+            If None, normalizes across the entire tensor. Defaults to None.
+
+    Returns:
+        torch.Tensor: The normalized tensor with values in the range [0, 1].
+    """
     if dim is None:
         min_val = torch.min(tensor)
         max_val = torch.max(tensor)
@@ -60,5 +71,19 @@ def normalize_tensor(tensor: torch.Tensor, dim: int | None = None) -> torch.Tens
 def rescale_tensor(
     tensor: torch.Tensor, min_val: float, max_val: float, dim: None | int | Tuple[int, ...] = None
 ) -> torch.Tensor:
+    """
+    Rescale a tensor to a specified range.
+
+    Args:
+        tensor (torch.Tensor): The tensor to rescale.
+        min_val (float): The minimum value of the target range.
+        max_val (float): The maximum value of the target range.
+        dim (None | int | Tuple[int, ...], optional): The dimension(s) along which to rescale.
+            If None, rescales across the entire tensor. Defaults to None.
+
+    Returns:
+        torch.Tensor: The rescaled tensor with values in the range [min_val, max_val].
+    """
+
     normalized_tensor = normalize_tensor(tensor, dim)
     return normalized_tensor * (max_val - min_val) + min_val

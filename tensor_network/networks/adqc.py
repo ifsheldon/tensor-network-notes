@@ -87,6 +87,24 @@ from numpy import ceil, log2
 
 
 def probabilities_adqc_classifier(qubit_states: torch.Tensor, num_classes: int):
+    """
+    Compute normalized class probabilities from qubit states for a quantum classifier.
+
+    Args:
+        qubit_states (torch.Tensor): Tensor containing the quantum states. The tensor should have
+                                     an odd number of dimensions with the first dimension being
+                                     the batch size.
+        num_classes (int): Number of classes for classification. Must be >= 2.
+
+    Returns:
+        torch.Tensor: Normalized probabilities for each class. Shape: (batch_size, num_classes)
+
+    Notes:
+        - The function takes the last log2(num_classes) qubits and uses their measured
+          probabilities as the classifier's output.
+        - Only the first `num_classes` base states are used for classification.
+        - Probabilities are normalized to sum to 1 for each sample.
+    """
     DELTA = 1e-10
     assert qubit_states.ndimension() % 2 == 1
     assert num_classes >= 2, "number of classes must be greater than 2"
