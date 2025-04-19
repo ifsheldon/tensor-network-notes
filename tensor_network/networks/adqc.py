@@ -39,6 +39,7 @@ class ADQCNet(nn.Module):
         super().__init__()
         target_positions = self.calc_gate_target_qubit_positions(gate_pattern, num_qubits)
         gates = []
+        self.num_qubits = num_qubits
 
         for layer_idx in range(num_layers):
             for target_qubit_indices in target_positions:
@@ -53,11 +54,11 @@ class ADQCNet(nn.Module):
 
         self.net = nn.Sequential(*gates)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert len(x.shape) % 2 == 1, (
-            "x must have an odd number of dimensions, as the first dimension is the batch dimension"
+    def forward(self, qubit_states: torch.Tensor) -> torch.Tensor:
+        assert len(qubit_states.shape) == self.num_qubits + 1, (
+            f"qubit_states must have {self.num_qubits + 1} dimensions, but got {len(qubit_states.shape)}"
         )
-        return self.net(x)
+        return self.net(qubit_states)
 
     @staticmethod
     def calc_gate_target_qubit_positions(
