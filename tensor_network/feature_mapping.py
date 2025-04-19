@@ -21,7 +21,7 @@ def cossin_feature_map(samples: torch.Tensor, theta: float = 1.0) -> torch.Tenso
         theta: Angle parameter (default: 1.0)
 
     Returns:
-        Transformed features of shape (batch_size, 2*feature_num)
+        Transformed features of shape (batch_size, feature_num, 2)
     """
     # Ensure samples is a 2D tensor
     if samples.ndimension() == 1:
