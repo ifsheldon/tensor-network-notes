@@ -7,7 +7,6 @@ __all__ = ['cossin_feature_map']
 import torch
 
 # %% ../3-5.ipynb 16
-@torch.compile
 def cossin_feature_map(samples: torch.Tensor, theta: float = 1.0) -> torch.Tensor:
     """
     Apply cossin feature mapping for qubit systems (d=2).
