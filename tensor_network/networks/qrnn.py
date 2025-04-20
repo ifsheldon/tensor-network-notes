@@ -19,7 +19,6 @@ from ..tensor_utils import zeros_state
 from einops import einsum, rearrange
 from torch import nn
 from ..feature_mapping import cossin_feature_map, feature_map_to_qubit_state
-import sys
 
 
 class ADQCRNN(nn.Module):

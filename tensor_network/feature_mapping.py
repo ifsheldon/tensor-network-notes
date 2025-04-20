@@ -42,6 +42,9 @@ from einops import einsum
 
 
 def feature_map_to_qubit_state(features: torch.Tensor) -> torch.Tensor:
+    """
+    Convert a feature tensor of shape (batch_size, feature_dim, 2) to a qubit state tensor of shape (batch_size, 2, ..., 2)
+    """
     assert features.ndim == 3 and features.shape[2] == 2, (
         f"feature must be a 3D tensor of shape (batch_size, feature_dim, 2), but got {features.shape}"
     )

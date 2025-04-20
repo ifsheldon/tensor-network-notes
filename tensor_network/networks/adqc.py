@@ -87,15 +87,16 @@ class ADQCNet(nn.Module):
 from numpy import ceil, log2
 
 
-def probabilities_adqc_classifier(qubit_states: torch.Tensor, num_classes: int):
+def probabilities_adqc_classifier(
+    qubit_states: torch.Tensor, num_classes: int, fast_mode: bool = False
+):
     """
     Compute normalized class probabilities from qubit states for a quantum classifier.
 
     Args:
-        qubit_states (torch.Tensor): Tensor containing the quantum states. The tensor should have
-                                     an odd number of dimensions with the first dimension being
-                                     the batch size.
+        qubit_states (torch.Tensor): Tensor containing the quantum states. The first dimension is the batch size.
         num_classes (int): Number of classes for classification. Must be >= 2.
+        fast_mode (bool): Whether to use faster probability calculation. Not working on MPS for now.
 
     Returns:
         torch.Tensor: Normalized probabilities for each class. Shape: (batch_size, num_classes)
@@ -107,7 +108,6 @@ def probabilities_adqc_classifier(qubit_states: torch.Tensor, num_classes: int):
         - Probabilities are normalized to sum to 1 for each sample.
     """
     DELTA = 1e-10
-    assert qubit_states.ndimension() % 2 == 1
     assert num_classes >= 2, "number of classes must be greater than 2"
     num_qubit_required = int(ceil(log2(num_classes)))
     assert qubit_states.ndimension() >= num_qubit_required + 1
@@ -116,8 +116,11 @@ def probabilities_adqc_classifier(qubit_states: torch.Tensor, num_classes: int):
     qubit_states = qubit_states.reshape(batch_size, -1, 2**num_qubit_required)
     # use the first `num_classes` base states of the `num_qubit_required` qubits as the classifier's output
     substates = qubit_states[:, :, :num_classes]  # (batch_size, 2**other_qubit_num, num_classes)
-    probabilities = (substates * substates.conj()).real
-    probabilities_of_classes = torch.sum(probabilities, dim=1)  # (batch_size, num_classes)
+    if fast_mode:
+        probabilities_of_classes = substates.norm(dim=1)
+    else:
+        probabilities = (substates * substates.conj()).real
+        probabilities_of_classes = torch.sum(probabilities, dim=1)  # (batch_size, num_classes)
     prob_norm = torch.sum(probabilities_of_classes, dim=1, keepdim=True) + DELTA  # (batch_size, 1)
     normalized_class_probabilities = probabilities_of_classes / prob_norm
     return normalized_class_probabilities
