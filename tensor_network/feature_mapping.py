@@ -43,7 +43,7 @@ from einops import einsum
 
 def feature_map_to_qubit_state(features: torch.Tensor) -> torch.Tensor:
     assert features.ndim == 3 and features.shape[2] == 2, (
-        f"feature must be a 3D tensor of shape (batch_size, feature_dim, 2), but got {feature.shape}"
+        f"feature must be a 3D tensor of shape (batch_size, feature_dim, 2), but got {features.shape}"
     )
     feature_num = features.shape[1]
     features = torch.split(features, 1, dim=1)  # tuple of tensors of shape (batch_size, 1, 2)
