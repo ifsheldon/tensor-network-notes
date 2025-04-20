@@ -12,13 +12,13 @@ import torch
 gpu = torch.device("mps")
 cpu = torch.device("cpu")
 
-# %% ../../3-6.ipynb 4
+# %% ../../3-6.ipynb 5
 from typing import Literal
 from .adqc import ADQCNet
 from ..tensor_utils import zeros_state
 from einops import einsum, rearrange
 from torch import nn
-from ..feature_mapping import cossin_feature_map
+from ..feature_mapping import cossin_feature_map, feature_map_to_qubit_state
 import sys
 
 
@@ -113,15 +113,9 @@ class ADQCRNN(nn.Module):
                 features = self.feature_map_compiled(
                     data_batch[:, t, :]
                 )  # (batch_size, feature_dim, 2)
-            features = [features[:, i, :] for i in range(feature_dim)]
-            feature_qubit_states = einsum(
-                *features,
-                "{feature_vecs} -> {feature_state}".format(
-                    feature_vecs=",".join(
-                        f"{batch_dim_name} {name}" for name in feature_qubit_names
-                    ),
-                    feature_state=" ".join([batch_dim_name] + feature_qubit_names),
-                ),
+
+            feature_qubit_states = feature_map_to_qubit_state(
+                features
             )  # (batch_size, *feature_qubit_dims)
 
             states = einsum(
@@ -163,7 +157,7 @@ class ADQCRNN(nn.Module):
         prob_of_projected_feature_state = norms.squeeze(1)  # (batch_size,)
         return prob_of_projected_feature_state
 
-# %% ../../3-6.ipynb 9
+# %% ../../3-6.ipynb 10
 def series_sin_cos(
     length: int, coeff_sin: torch.Tensor, coeff_cos: torch.Tensor, k_step: float = 0.02
 ) -> torch.Tensor:
@@ -184,7 +178,7 @@ def series_sin_cos(
     series = y_sin + y_cos  # (length,)
     return series
 
-# %% ../../3-6.ipynb 11
+# %% ../../3-6.ipynb 12
 def prepare_series_samples(
     series: torch.Tensor, sample_length: int, step_size: int
 ) -> torch.Tensor:
