@@ -64,6 +64,16 @@ class ADQCNet(nn.Module):
     def calc_gate_target_qubit_positions(
         gate_pattern: Literal["brick", "stair"], num_qubits: int
     ) -> List[Tuple[int, int]]:
+        """
+        Calculate the target qubit positions for the biqubit gates of one layer in the network.
+
+        Args:
+            gate_pattern (Literal["brick", "stair"]): The pattern of the gates in the network.
+            num_qubits (int): The number of qubits in the network.
+
+        Returns:
+            List[Tuple[int, int]]: The target qubit positions for the biqubit gates in the network.
+        """
         assert gate_pattern in ["brick", "stair"], (
             f"""gate_pattern must be either "brick" or "stair", but got {gate_pattern}"""
         )

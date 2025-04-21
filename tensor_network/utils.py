@@ -42,12 +42,14 @@ def check_state_tensor(tensor: torch.Tensor):
     assert tensor.ndim > 0, "quantum_state must be a tensor with at least one dimension"
 
 
-def check_quantum_gate(tensor: torch.Tensor, num_qubits: int | None = None):
+def check_quantum_gate(tensor: torch.Tensor, num_qubits: int | None = None) -> int:
     """
     Check if the tensor is a valid quantum gate tensor.
     Args:
         tensor: The tensor to check.
         num_qubits: The number of qubits.
+    Returns:
+        The number of qubits that the gate acts on.
     Raises:
         AssertionError: If the tensor is not a valid quantum gate tensor.
     """
@@ -70,6 +72,7 @@ def check_quantum_gate(tensor: torch.Tensor, num_qubits: int | None = None):
         assert tensor.ndim == 2 * num_qubits, (
             f"gate tensor must have 2 * num_qubits dimensions, got {tensor.ndim}"
         )
+    return num_qubits
 
 # %% ../0-utils.ipynb 4
 def inverse_permutation(permutation: List[int]) -> List[int]:

@@ -76,10 +76,11 @@ class QuantumGate(nn.Module):
         self.control_qubit = control_qubit
         self.batched_input = batched_input
 
-    def forward(
+    def apply_gate(
         self,
-        tensor: torch.Tensor,
         *,
+        tensor: torch.Tensor,
+        gate: torch.Tensor,
         target_qubit: int | List[int] | None = None,
         control_qubit: int | List[int] | None = None,
     ) -> torch.Tensor:
@@ -89,17 +90,28 @@ class QuantumGate(nn.Module):
         if self.batched_input:
             return functional.apply_gate_batched(
                 quantum_states=tensor,
-                gate=self.gate,
+                gate=gate,
                 target_qubit=target_qubit,
                 control_qubit=control_qubit,
             )
         else:
             return functional.apply_gate(
                 quantum_state=tensor,
-                gate=self.gate,
+                gate=gate,
                 target_qubit=target_qubit,
                 control_qubit=control_qubit,
             )
+
+    def forward(
+        self,
+        tensor: torch.Tensor,
+        *,
+        target_qubit: int | List[int] | None = None,
+        control_qubit: int | List[int] | None = None,
+    ) -> torch.Tensor:
+        return self.apply_gate(
+            tensor=tensor, gate=self.gate, target_qubit=target_qubit, control_qubit=control_qubit
+        )
 
 
 class PauliGate(QuantumGate):
@@ -218,26 +230,12 @@ class ADQCGate(QuantumGate):
         target_qubit: int | List[int] | None = None,
         control_qubit: int | List[int] | None = None,
     ) -> torch.Tensor:
-        target_qubit = target_qubit if self.target_qubit is None else self.target_qubit
-        control_qubit = control_qubit if self.control_qubit is None else self.control_qubit
-        assert target_qubit is not None, "target_qubit must be specified or set in the gate"
         P, _S, Q = torch.linalg.svd(view_gate_tensor_as_matrix(self.gate_params))
         gate_matrix = P @ Q
         gate = view_gate_matrix_as_tensor(gate_matrix)
-        if self.batched_input:
-            return functional.apply_gate_batched(
-                quantum_states=tensor,
-                gate=gate,
-                target_qubit=target_qubit,
-                control_qubit=control_qubit,
-            )
-        else:
-            return functional.apply_gate(
-                quantum_state=tensor,
-                gate=gate,
-                target_qubit=target_qubit,
-                control_qubit=control_qubit,
-            )
+        return self.apply_gate(
+            tensor=tensor, gate=gate, target_qubit=target_qubit, control_qubit=control_qubit
+        )
 
 
 class RotateGate(QuantumGate):
@@ -286,26 +284,12 @@ class RotateGate(QuantumGate):
         target_qubit: int | List[int] | None = None,
         control_qubit: int | List[int] | None = None,
     ) -> torch.Tensor:
-        target_qubit = self.target_qubit if target_qubit is None else target_qubit
-        control_qubit = self.control_qubit if control_qubit is None else control_qubit
-        assert target_qubit is not None, "target_qubit must be specified or set in the gate"
         rotate_gate = functional.rotate(
             ita=self.gate_params["ita"],
             beta=self.gate_params["beta"],
             delta=self.gate_params["delta"],
             gamma=self.gate_params["gamma"],
         )
-        if self.batched_input:
-            return functional.apply_gate_batched(
-                quantum_states=tensor,
-                gate=rotate_gate,
-                target_qubit=target_qubit,
-                control_qubit=control_qubit,
-            )
-        else:
-            return functional.apply_gate(
-                quantum_state=tensor,
-                gate=rotate_gate,
-                target_qubit=target_qubit,
-                control_qubit=control_qubit,
-            )
+        return self.apply_gate(
+            tensor=tensor, gate=rotate_gate, target_qubit=target_qubit, control_qubit=control_qubit
+        )
