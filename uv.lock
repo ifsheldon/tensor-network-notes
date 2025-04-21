@@ -992,6 +992,19 @@ wheels = [
 ]
 
 [[package]]
+name = "mlx"
+version = "0.25.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/80/95/dbaaf05da6777959a9fed8f699bb5f78cdbb62ae163c795ace36d47bad13/mlx-0.25.0-cp312-cp312-macosx_13_0_arm64.whl", hash = "sha256:97bbe2d180ecc644b1a4941f477966110d4aedca1bacf537660ad89ce0468db0", size = 30651368 },
+    { url = "https://files.pythonhosted.org/packages/e8/25/54c67d799ed0da464f7ed68e56dbd0d85850737306f035e62d7b6c4e52fb/mlx-0.25.0-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:224409ad6c3246275565d148ef81a6ed159ec34005d09898fda04af19ffbae65", size = 30061629 },
+    { url = "https://files.pythonhosted.org/packages/75/f3/fe19309ebcda6e34d14db5677e7862c5e5bfb4f539cd92ba0f37bc24097a/mlx-0.25.0-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:f97d018ac5e500da97cf58631332f71a231f1fee9bf76e42af41771b1ea54149", size = 30061680 },
+    { url = "https://files.pythonhosted.org/packages/65/f1/d564a9ab30d789d377300d3dce4c415553fb6738ebc440b2a6a1e57fe2eb/mlx-0.25.0-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:62974c521f8affcf9472392c7c1f2bb481d105f383f2402175c93285b1059dc1", size = 30651319 },
+    { url = "https://files.pythonhosted.org/packages/75/96/ab7d7a89633254575f124d8ae5c9ffbf1b8a9306a83b30ad1a1c09717fba/mlx-0.25.0-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:5c089c252d94d04a7cb60908f700a994649a0fbd8eeff52d9ebdc0b3c8578330", size = 30061490 },
+    { url = "https://files.pythonhosted.org/packages/a1/cc/900ffa7c932f453f6ce96bcc958a921ac9d8ff75b6c8fa3ad1b47b6a7c4f/mlx-0.25.0-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:d7221f0a8db967baaed0e88d8be23119bf085934bbb5c26ede4c54af0592973e", size = 30061583 },
+]
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1881,6 +1894,9 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+mlx = [
+    { name = "mlx" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1903,6 +1919,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "ruff", specifier = ">=0.11.5" },
 ]
+mlx = [{ name = "mlx", specifier = ">=0.25.0" }]
 
 [[package]]
 name = "terminado"
