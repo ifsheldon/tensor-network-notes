@@ -13,12 +13,12 @@ from torch import nn
 # %% ../../3-8.ipynb 11
 from torch import Tensor
 from .adqc import ADQCNet
-from ..tensor_gates.modules import QuantumGate
+from ..tensor_gates.modules import ParameterizedGate, SimpleGate
 from typing import Set, Literal
 from ..tensor_gates.functional import spin_operator
 
 
-class PolarizationGate(QuantumGate):
+class PolarizationGate(ParameterizedGate):
     """
     A gate that applies a magnetic field to polarize a qubit.
     """
@@ -110,7 +110,7 @@ class ADQCTimeEvolution(nn.Module):
             # gates for coupling
             for position in per_layer_gate_pattern:
                 gates.append(
-                    QuantumGate(
+                    SimpleGate(
                         batched_input=False,
                         gate_name="coupling",
                         target_qubit=list(position),
