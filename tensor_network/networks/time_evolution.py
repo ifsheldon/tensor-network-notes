@@ -10,15 +10,19 @@ import torch
 from einops import einsum
 from torch import nn
 
-# %% ../../3-8.ipynb 7
+# %% ../../3-8.ipynb 11
 from torch import Tensor
 from .adqc import ADQCNet
 from ..tensor_gates.modules import QuantumGate
 from typing import Set, Literal
-from ..tensor_gates.functional import pauli_operator
+from ..tensor_gates.functional import spin_operator
 
 
 class PolarizationGate(QuantumGate):
+    """
+    A gate that applies a magnetic field to polarize a qubit.
+    """
+
     def __init__(
         self,
         *,
@@ -27,6 +31,15 @@ class PolarizationGate(QuantumGate):
         target_qubit: int,
         h_directions: Set[Literal["x", "y", "z"]],
     ):
+        """
+        Initialize the PolarizationGate.
+
+        Args:
+            batched_input: Whether the input is batched.
+            time_slice: The time slice width of the gate.
+            target_qubit: The target qubit of the gate.
+            h_directions: The directions of the spin operator.
+        """
         assert isinstance(h_directions, set), "h_directions must be a list"
         assert 3 >= len(h_directions) > 0, "h_directions must be a non-empty set"
         assert all(direction in ["x", "y", "z"] for direction in h_directions), (
@@ -34,14 +47,12 @@ class PolarizationGate(QuantumGate):
         )
         assert time_slice > 0, "time_slice must be greater than 0"
         assert target_qubit >= 0, "target_qubit must be greater than or equal to 0"
-        parameters = {}
-        if "x" in h_directions:
-            parameters["x"] = nn.Parameter(torch.randn(1), requires_grad=True)
-        if "y" in h_directions:
-            parameters["y"] = nn.Parameter(torch.randn(1), requires_grad=True)
-        if "z" in h_directions:
-            parameters["z"] = nn.Parameter(torch.randn(1), requires_grad=True)
-        parameters = nn.ParameterDict(parameters)
+        parameters = nn.ParameterDict(
+            {
+                direction: nn.Parameter(torch.randn(1), requires_grad=True)
+                for direction in h_directions
+            }
+        )
 
         super().__init__(
             batched_input=batched_input,
@@ -49,22 +60,22 @@ class PolarizationGate(QuantumGate):
             requires_grad=True,
             target_qubit=target_qubit,
         )
-
-        self.pauli_x = nn.Parameter(pauli_operator(pauli="X"), requires_grad=False)
-        self.pauli_y = nn.Parameter(pauli_operator(pauli="Y"), requires_grad=False)
-        self.pauli_z = nn.Parameter(pauli_operator(pauli="Z"), requires_grad=False)
+        self.spin = nn.ParameterDict(
+            {
+                "x": nn.Parameter(spin_operator("X"), requires_grad=False),
+                "y": nn.Parameter(spin_operator("Y"), requires_grad=False),
+                "z": nn.Parameter(spin_operator("Z"), requires_grad=False),
+            }
+        )
         self.time_slice = time_slice
+        self.h_directions = h_directions
 
     def forward(self, tensor: Tensor) -> Tensor:
-        pauli_matrix = 0
-        if "x" in self.gate_params:
-            pauli_matrix += self.gate_params["x"] * self.pauli_x
-        if "y" in self.gate_params:
-            pauli_matrix += self.gate_params["y"] * self.pauli_y
-        if "z" in self.gate_params:
-            pauli_matrix += self.gate_params["z"] * self.pauli_z
+        spin_matrix = 0
+        for direction in self.h_directions:
+            spin_matrix += self.gate_params[direction] * self.spin[direction]
 
-        gate = torch.matrix_exp(-0.5j * self.time_slice * pauli_matrix)
+        gate = torch.matrix_exp(-1j * self.time_slice * spin_matrix)
         return self.apply_gate(
             tensor=tensor,
             gate=gate,
@@ -85,10 +96,12 @@ class ADQCTimeEvolution(nn.Module):
         assert hamiltonian.shape == (4, 4) or hamiltonian.shape == (2, 2, 2, 2), (
             "Hamiltonian must be a 4x4 matrix or 2x2x2x2 tensor"
         )
+        if hamiltonian.shape == (2, 2, 2, 2):
+            hamiltonian = hamiltonian.reshape(4, 4)
         assert num_qubits > 0, "Number of qubits must be greater than 0"
         assert time_steps > 0, "Time steps must be greater than 0"
         assert time_slice > 0, "Time slice must be greater than 0"
-        U = torch.matrix_exp(-0.25j * time_slice * hamiltonian)
+        U = torch.matrix_exp(-1j * time_slice * hamiltonian).reshape(2, 2, 2, 2)
         per_layer_gate_pattern = ADQCNet.calc_gate_target_qubit_positions(
             gate_pattern="brick", num_qubits=num_qubits
         )
@@ -99,9 +112,10 @@ class ADQCTimeEvolution(nn.Module):
                 gates.append(
                     QuantumGate(
                         batched_input=False,
+                        gate_name="coupling",
+                        target_qubit=list(position),
                         gate=U,
                         requires_grad=False,
-                        target_qubit=list(position),
                     )
                 )
             # gates for polarization
