@@ -91,6 +91,7 @@ def rescale_tensor(
 # %% ../tensor_product_experiments.ipynb 4
 from einops import einsum
 from typing import List, Set
+from random import randint
 
 
 def tensor_contract(*tensors, ein_expr: str, dims: List[Set[str]] | Set[str]) -> torch.Tensor:
@@ -113,22 +114,22 @@ def tensor_contract(*tensors, ein_expr: str, dims: List[Set[str]] | Set[str]) ->
         all_dims.update(dim_set)
 
     assert len(all_dims) == total_dims_num, "Sets of dimensions must be disjoint"
-    has_prefix = True
-    prefix_list = ["o_o_o", "j_j_j", "k_k_k"]
-    for prefix in prefix_list:
-        if prefix in ein_expr:
-            continue
-        else:
-            for i, dim_set in enumerate(dims):
-                new_dim_name = f"{prefix}_{i}"
-                for d in dim_set:
-                    ein_expr = ein_expr.replace(d, new_dim_name)
-            has_prefix = False
-            break
 
-    if has_prefix:
-        raise Exception(
-            f"Woops, you have entered a magic dimension name, please don't use any of {prefix_list} in your ein_expr"
-        )
+    prefix = randint(2 * 4, 2 ** (4 * 3))  # 2 or 3 digit hex
+    prefix = f"{prefix:x}"
+    postfix = randint(2 * 4, 2 ** (4 * 3))  # 2 or 3 digit hex
+    postfix = f"{postfix:x}"
+    mapping = {}
+    for i, dim_set in enumerate(dims):
+        new_name = f"a{prefix}_{i:x}_{postfix}"
+        for d in dim_set:
+            mapping[d] = new_name
+
+    all_dims = list(all_dims)
+    # sort all_dims by lex order, longest first
+    all_dims.sort(reverse=True)
+
+    for d in all_dims:
+        ein_expr = ein_expr.replace(d, mapping[d])
 
     return einsum(*tensors, ein_expr)
