@@ -91,9 +91,6 @@ def calc_global_tensor_by_contract(mps_tensors: List[torch.Tensor]) -> torch.Ten
         dim_names.append(dim_name_list)
 
     input_expression = ",".join([" ".join(dim_names[i]) for i in range(length)])
-    output_dims = [dim_name_list[1] for dim_name_list in dim_names]
-    output_dims = [dim_names[0][0]] + output_dims + [dim_names[-1][-1]]
-    output_expression = " ".join(output_dims)
 
     contract_dims = []
     for i in range(length - 1):
@@ -107,6 +104,15 @@ def calc_global_tensor_by_contract(mps_tensors: List[torch.Tensor]) -> torch.Ten
         front_left_dim = dim_names[0][0]
         end_right_dim = dim_names[-1][2]
         contract_dims.append({front_left_dim, end_right_dim})
+        output_dims = [dim_name_list[1] for dim_name_list in dim_names]
+    else:
+        output_dims = (
+            [dim_names[0][0]]
+            + [dim_name_list[1] for dim_name_list in dim_names]
+            + [dim_names[-1][-1]]
+        )
+
+    output_expression = " ".join(output_dims)
 
     return tensor_contract(
         *mps_tensors, ein_expr=f"{input_expression} -> {output_expression}", dims=contract_dims
@@ -137,7 +143,7 @@ def calc_global_tensor_by_tensordot(mps_tensors: List[torch.Tensor]) -> torch.Te
     else:
         raise NotImplementedError(f"MPS type {mps_type} is not implemented")
 
-# %% ../../4-1.ipynb 10
+# %% ../../4-1.ipynb 12
 def calculate_mps_norm_factors(
     mps_tensors: List[torch.Tensor], __efficient_mode: bool = True
 ) -> torch.Tensor:
@@ -146,7 +152,7 @@ def calculate_mps_norm_factors(
 
     Args:
         mps_tensors: List[torch.Tensor], the MPS tensors
-        __efficient_mode: bool, whether to use efficient mode
+        __efficient_mode: bool, whether to use efficient mode, only for Open MPS
 
     Returns:
         torch.Tensor, the norm factors
@@ -157,25 +163,44 @@ def calculate_mps_norm_factors(
     length = len(conjugates)
     device = conjugates[0].device
     dtype = conjugates[0].dtype
-    v = torch.ones(1, 1, dtype=dtype, device=device)  # dims: a b
-    norm_factors = torch.empty(length, dtype=dtype, device=device)
-    if __efficient_mode:
+    mps_type = MPSType.get_mps_type(mps_tensors)
+
+    if mps_type == MPSType.Open:
+        v = torch.ones(1, 1, dtype=dtype, device=device)  # dims: a b
+        norm_factors = torch.empty(length, dtype=dtype, device=device)
+        if __efficient_mode:
+            for i in range(length):
+                v = torch.einsum("ab,aix->bix", v, conjugates[i])
+                v = torch.einsum("bix,biy->xy", v, mps_tensors[i])
+                norm_factor = v.norm()
+                v /= norm_factor
+                norm_factors[i] = norm_factor
+        else:
+            for i in range(length):
+                v = torch.einsum("ab,aix,biy->xy", v, conjugates[i], mps_tensors[i])
+                norm_factor = v.norm()
+                v /= norm_factor
+                norm_factors[i] = norm_factor
+        return norm_factors
+    elif mps_type == MPSType.Periodic:
+        virtual_dim = mps_tensors[0].shape[0]
+        norm_factors = torch.empty(length, dtype=dtype, device=device)
+        v = torch.eye(virtual_dim**2, dtype=dtype, device=device).reshape(
+            virtual_dim, virtual_dim, virtual_dim, virtual_dim
+        )
         for i in range(length):
-            v = torch.einsum("ab,aix->bix", v, conjugates[i])
-            v = torch.einsum("bix,biy->xy", v, mps_tensors[i])
+            v = torch.einsum("uvap,adb,pdq->uvbq", v, conjugates[i], mps_tensors[i])
             norm_factor = v.norm()
             v /= norm_factor
             norm_factors[i] = norm_factor
+
+        final_norm_factor = torch.einsum("acac->", v)
+        norm_factors[-1] *= final_norm_factor
+        return norm_factors
     else:
-        for i in range(length):
-            v = torch.einsum("ab,aix,biy->xy", v, conjugates[i], mps_tensors[i])
-            norm_factor = v.norm()
-            v /= norm_factor
-            norm_factors[i] = norm_factor
+        raise NotImplementedError(f"MPS type {mps_type} is not implemented")
 
-    return norm_factors
-
-# %% ../../4-1.ipynb 15
+# %% ../../4-1.ipynb 18
 def normalize_mps(mps_tensors: List[torch.Tensor]) -> List[torch.Tensor]:
     """
     Normalize the MPS
