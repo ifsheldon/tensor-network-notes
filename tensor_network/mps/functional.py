@@ -4,7 +4,7 @@
 
 # %% auto 0
 __all__ = ['MPSType', 'gen_random_mps_tensors', 'calc_global_tensor_by_contract', 'calc_global_tensor_by_tensordot',
-           'calculate_mps_norm_factors', 'normalize_mps']
+           'calculate_mps_norm_factors', 'normalize_mps', 'calc_inner_product']
 
 # %% ../../4-1.ipynb 2
 import torch
@@ -221,3 +221,54 @@ def normalize_mps(mps_tensors: List[torch.Tensor]) -> List[torch.Tensor]:
     front_tensor = mps_tensors[0] * normalization_factors[0]
     end_tensor = mps_tensors[-1] * normalization_factors[-1]
     return [front_tensor] + [normalized_middle_tensors[i] for i in range(length - 2)] + [end_tensor]
+
+# %% ../../4-1.ipynb 23
+def calc_inner_product(mps0: List[torch.Tensor], mps1: List[torch.Tensor]) -> torch.Tensor:
+    """
+    Calculate the inner product of two MPS of length N
+
+    Args:
+        mps0: List[torch.Tensor], the first MPS that to be conjugated
+        mps1: List[torch.Tensor], the second MPS
+
+    Returns:
+        torch.Tensor, inner product factors of lengh N + 1
+    """
+    assert len(mps0) == len(mps1)
+    assert mps0[0].shape[0] == mps0[-1].shape[-1]
+    assert mps1[0].shape[0] == mps1[-1].shape[-1]
+    assert mps0[0].dtype == mps1[0].dtype
+    assert mps0[0].device == mps1[0].device
+    endpoint_virtual_dim1 = mps0[0].shape[0]
+    endpoint_virtual_dim2 = mps1[0].shape[0]
+    length = len(mps0)
+    dtype = mps0[0].dtype
+    device = mps0[0].device
+    v0 = torch.eye(endpoint_virtual_dim1, dtype=dtype, device=device)
+    v1 = torch.eye(endpoint_virtual_dim2, dtype=dtype, device=device)
+    # cross product of two identity matrices
+    v = torch.einsum("ab,xy->axby", v0, v1)
+
+    inner_product_factors = torch.empty(length + 1, dtype=dtype, device=device)
+    for i in range(length):
+        # a: mps0_conj left
+        # b: mps0_conj right
+        # d: physical dimension
+        # p: mps1 left
+        # q: mps1 right
+        # u: mps0 virtual dim
+        # v: mps1 virtual dim
+        v = torch.einsum("uvap,adb,pdq->uvbq", v, mps0[i].conj(), mps1[i])
+        product_factor = v.norm()
+        v /= product_factor
+        inner_product_factors[i] = product_factor
+
+    if v.numel() > 1:
+        # meaning if any of two MPS is periodic
+        product_factor = torch.einsum("acac->", v)
+        inner_product_factors[-1] = product_factor
+    else:
+        # both are open MPS
+        inner_product_factors[-1] = v[0, 0, 0, 0]
+
+    return inner_product_factors
