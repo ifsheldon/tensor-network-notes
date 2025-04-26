@@ -11,10 +11,14 @@ This is a [`uv`](https://github.com/astral-sh/uv) project. Setting up the enviro
 
 ## Run Tools
 
-We use `poe` to run tools. Available tools are:
+We use `poe` to run tools. Available commands are:
 * `lab`: run Jupyter Lab
 * `sync`: sync the code in notebooks to the `tensor_network` package
 * `format`: format the code in notebooks
+* Checking: use ruff linter to check code 
+    * `check_tensor_network`: check the exported code in `tensor_network` package
+    * `check`: check code in `.`
+    * `check_all`: check code in `.` and `tensor_network`
 * `precommit`: run pre-commit hooks
 
 Sample usage:
