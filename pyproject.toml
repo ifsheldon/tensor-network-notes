@@ -27,6 +27,9 @@ dev = [
 mlx = [
     "mlx>=0.25.0",
 ]
+ref-code-deps = [
+    "opencv-python>=4.11.0.86",
+]
 
 [tool.ruff]
 extend-exclude = ["tensor_network", "setup.py"]
