@@ -238,6 +238,7 @@ class MPS:
     ) -> torch.Tensor:
         assert 0 <= idx < self.length, "idx must be in [0, length - 1]"
         if self.center is None:  # TODO: optimize this branch
+            # maybe we can just use einsum here, need some benchmarking
             if inplace_mutation:
                 self.center_orthogonalization_(idx, "qr")
                 return self.one_body_reduced_density_matrix(idx=idx)
