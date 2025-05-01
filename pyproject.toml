@@ -1,35 +1,41 @@
 [project]
-name="tensor-network"
+name = "tensor-network"
 version = "0.1.0"
-description = "Tensor Network Exercises"
+description = "Tensor Network Code"
 readme = "README.md"
-requires-python=">=3.12"
+requires-python = ">=3.12"
 dependencies = [
     "einops>=0.8.1",
-    "matplotlib>=3.10.1",
     "numpy>=2.2.3",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
-    "torch>=2.6.0",
-    "torchvision>=0.21.0",
-    "tqdm>=4.67.1",
 ]
+
+[project.optional-dependencies]
+mlx = ["mlx>=0.25.0"]
 
 [dependency-groups]
 dev = [
-    "ipywidgets>=8.1.5",
-    "jupyterlab>=4.3.6",
     "nbdev>=2.3.37",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
     "poethepoet>=0.33.1",
     "pytest>=8.3.5",
     "ruff>=0.11.5",
 ]
-mlx = [
-    "mlx>=0.25.0",
+
+notebook = [
+    "matplotlib>=3.10.1",
+    "ipywidgets>=8.1.5",
+    "jupyterlab>=4.3.6",
+    "tqdm>=4.67.1",
 ]
-ref-code-deps = [
-    "opencv-python>=4.11.0.86",
-]
+
+ref-code-deps = ["opencv-python>=4.11.0.86"]
+
+[tool.uv]
+# include dev, notebook, and ref-code-deps in the default groups for running the notebooks
+default-groups = ["dev", "notebook", "ref-code-deps"]
 
 [tool.ruff]
 extend-exclude = ["tensor_network", "setup.py"]
