@@ -33,6 +33,19 @@ notebook = [
 
 ref-code-deps = ["opencv-python>=4.11.0.86"]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+packages = ["tensor_network"]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["tensor_network"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["tensor_network"]
+
 [tool.uv]
 # include dev, notebook, and ref-code-deps in the default groups for running the notebooks
 default-groups = ["dev", "notebook", "ref-code-deps"]
