@@ -1,5 +1,5 @@
 [project]
-name = "tensor-network"
+name = "tensor-network-code"
 version = "0.1.0"
 description = "Tensor Network Code"
 readme = "README.md"
@@ -36,9 +36,6 @@ ref-code-deps = ["opencv-python>=4.11.0.86"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.metadata]
-packages = ["tensor_network"]
 
 [tool.hatch.build.targets.wheel]
 only-include = ["tensor_network"]
