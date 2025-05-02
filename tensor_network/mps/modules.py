@@ -183,7 +183,9 @@ class MPS:
         else:
             return torch.prod(product_factors)
 
-    def check_orthogonality(self, *, check_mode: Literal["print", "assert"] = "print"):
+    def check_orthogonality(
+        self, *, check_mode: Literal["print", "assert"] = "print", tolerance: float = 1e-6
+    ):
         """
         Check the orthogonality of the MPS.
         """
@@ -220,7 +222,9 @@ class MPS:
                     if print_mode:
                         print(f"Local Tensor {i}: {diff_norm}")
                     else:
-                        assert diff_norm < 1e-6, f"Local Tensor {i} is not orthogonal"
+                        assert diff_norm < tolerance, (
+                            f"Local Tensor {i} is not orthogonal, {diff_norm=}"
+                        )
 
     def to_(self, dtype: torch.dtype | None = None, device: torch.device | None = None) -> "MPS":
         if dtype is not None and self._dtype != dtype:
