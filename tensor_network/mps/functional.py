@@ -306,9 +306,8 @@ def orthogonalize_left2right_step(
     shape = local_tensor.shape  # (virtual_dim, physical_dim, virtual_dim)
     if truncate_dim is not None:
         virtual_dim = shape[2]
-        assert virtual_dim > truncate_dim > 0, (
-            "truncate_dim must be positive and less than virtual_dim"
-        )
+        assert truncate_dim > 0, "truncate_dim must be positive"
+        truncate_dim = min(truncate_dim, virtual_dim)
         assert mode == "svd", "mode must be 'svd' when truncate_dim is provided"
         need_truncate = True
     else:
@@ -374,9 +373,8 @@ def orthogonalize_right2left_step(
     shape = local_tensor.shape  # (virtual_dim, physical_dim, virtual_dim)
     if truncate_dim is not None:
         virtual_dim = shape[0]
-        assert virtual_dim > truncate_dim > 0, (
-            "truncate_dim must be positive and less than virtual_dim"
-        )
+        assert truncate_dim > 0, "truncate_dim must be positive"
+        truncate_dim = min(truncate_dim, virtual_dim)
         assert mode == "svd", "mode must be 'svd' when truncate_dim is provided"
         need_truncate = True
     else:
