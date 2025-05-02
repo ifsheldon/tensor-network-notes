@@ -13,3 +13,4 @@ wheels/
 .ipynb_checkpoints
 draft.ipynb
 datasets
+.env
