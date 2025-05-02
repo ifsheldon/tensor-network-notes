@@ -474,12 +474,25 @@ def orthogonalize_arange(
 
 # %% ../../4-3.ipynb 2
 from ..utils import check_state_tensor
-from typing import List
+from typing import List, Tuple
 
 
 def tt_decomposition(
     state_tensor: torch.Tensor, *, max_rank: int | None = None, use_svd: bool = False
-) -> List[torch.Tensor]:
+) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    """
+    Perform tensor-train decomposition
+
+    Args:
+        state_tensor: torch.Tensor, the state tensor to be decomposed
+        max_rank: int | None, the maximum rank to be kept in SVD decomposition. If None, no rank clipping will be performed.
+        use_svd: bool, whether to use SVD decomposition. If False, QR decomposition will be used.
+
+    Returns:
+        Tuple[List[torch.Tensor], List[torch.Tensor]], the local tensors and the clipped ranks.
+        The local tensors are the MPS tensors after decomposition.
+        The clipped ranks are the ranks after SVD decomposition if max_rank is not None. The clipped ranks are entanglement spectra.
+    """
     check_state_tensor(state_tensor)
     clip_rank = max_rank is not None
     if clip_rank:
@@ -522,4 +535,4 @@ def tt_decomposition(
         left_dim = new_left_dim
 
     local_tensors.append(remained_tensor.view(left_dim, physical_dim, 1))
-    return local_tensors
+    return local_tensors, clipped_ranks
