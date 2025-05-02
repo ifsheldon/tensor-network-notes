@@ -16,6 +16,7 @@ from tensor_network.mps.functional import (
     calc_global_tensor_by_tensordot,
     calculate_mps_norm_factors,
     calc_inner_product,
+    tt_decomposition,
 )
 import sys
 from einops import einsum
@@ -307,3 +308,12 @@ class MPS:
     @property
     def center(self) -> int | None:
         return self._center
+
+    @staticmethod
+    def from_state_tensor(
+        state_tensor: torch.Tensor, max_rank: int | None = None, use_svd: bool = False
+    ) -> "MPS":
+        local_tensors, _ = tt_decomposition(state_tensor, max_rank=max_rank, use_svd=use_svd)
+        mps = MPS(mps_tensors=local_tensors)
+        mps._center = len(local_tensors) - 1
+        return mps
