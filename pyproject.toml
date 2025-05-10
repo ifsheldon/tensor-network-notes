@@ -5,7 +5,7 @@ description = "Tensor Network Code"
 readme = "README.md"
 requires-python=">=3.12"
 dependencies = [
-    "einops>=0.8.1",
+    "einops",
     "numpy>=2.2.3",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
@@ -13,6 +13,9 @@ dependencies = [
 
 [project.optional-dependencies]
 mlx = ["mlx>=0.25.0"]
+
+[tool.uv.sources]
+einops = { git = "https://github.com/ifsheldon/einops", branch = "mlx-backend" }
 
 [dependency-groups]
 dev = [
@@ -33,6 +36,8 @@ notebook = [
 
 ref-code-deps = ["opencv-python>=4.11.0.86"]
 
+mlx = ["mlx>=0.25.0"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -45,7 +50,7 @@ only-include = ["tensor_network"]
 
 [tool.uv]
 # include dev, notebook, and ref-code-deps in the default groups for running the notebooks
-default-groups = ["dev", "notebook", "ref-code-deps"]
+default-groups = ["dev", "notebook", "ref-code-deps", "mlx"]
 
 [tool.ruff]
 extend-exclude = ["tensor_network", "setup.py"]
