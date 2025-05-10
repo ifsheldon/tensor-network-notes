@@ -14,18 +14,11 @@ dependencies = [
 [project.optional-dependencies]
 mlx = ["mlx>=0.25.0"]
 
-[tool.uv.sources]
-einops = { git = "https://github.com/ifsheldon/einops", branch = "mlx-backend" }
-
 [dependency-groups]
-dev = [
-    "nbdev>=2.3.37",
-    "torch>=2.6.0",
-    "torchvision>=0.21.0",
-    "poethepoet>=0.33.1",
-    "pytest>=8.3.5",
-    "ruff>=0.11.5",
-]
+
+torch = ["torch>=2.6.0", "torchvision>=0.21.0"]
+
+dev = ["nbdev>=2.3.37", "poethepoet>=0.33.1", "pytest>=8.3.5", "ruff>=0.11.5"]
 
 notebook = [
     "matplotlib>=3.10.1",
@@ -37,6 +30,25 @@ notebook = [
 ref-code-deps = ["opencv-python>=4.11.0.86"]
 
 mlx = ["mlx>=0.25.0"]
+
+
+[tool.uv.sources]
+einops = { git = "https://github.com/ifsheldon/einops", branch = "mlx-backend" }
+torch = [
+    { index = "torch-cpu", marker = "platform_system == 'Darwin'" },
+    { index = "torch-gpu", marker = "platform_system == 'Linux'" },
+]
+
+
+[[tool.uv.index]]
+name="torch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name="torch-gpu"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
@@ -50,7 +62,7 @@ only-include = ["tensor_network"]
 
 [tool.uv]
 # include dev, notebook, and ref-code-deps in the default groups for running the notebooks
-default-groups = ["dev", "notebook", "ref-code-deps", "mlx"]
+default-groups = ["dev", "notebook", "ref-code-deps", "mlx", "torch"]
 
 [tool.ruff]
 extend-exclude = ["tensor_network", "setup.py"]
