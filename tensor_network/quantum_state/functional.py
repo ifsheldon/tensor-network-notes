@@ -9,7 +9,7 @@ __all__ = ['calc_reduced_density_matrix', 'calc_observation', 'random_state_tens
 from typing import List
 import math
 import torch
-from ..utils import check_quantum_gate
+from ..utils.checking import check_quantum_gate
 
 # %% ../../2-6.ipynb 4
 def calc_reduced_density_matrix(state: torch.Tensor, qubit_idx: int | List[int]):

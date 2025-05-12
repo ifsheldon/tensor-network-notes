@@ -7,7 +7,7 @@ __all__ = ['MPSType', 'gen_random_mps_tensors', 'calc_global_tensor_by_contract'
 
 # %% ../../4-1.ipynb 2
 import torch
-from ..tensor_utils import tensor_contract
+from ..utils.tensors import tensor_contract
 from typing import List
 from enum import Enum
 
@@ -471,7 +471,7 @@ def orthogonalize_arange(
         return mps_tensors
 
 # %% ../../4-3.ipynb 2
-from ..utils import check_state_tensor
+from ..utils.checking import check_state_tensor
 from typing import List, Tuple
 
 

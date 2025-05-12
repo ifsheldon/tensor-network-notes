@@ -4,13 +4,12 @@
 __all__ = ['apply_gate', 'pauli_operator', 'rotate', 'apply_gate_batched_with_vmap', 'apply_gate_batched', 'apply_gate_nonbatched', 'gate_outer_product', 'spin_operator', 'identity_gate_tensor', 'get_control_gate_tensor', 'rand_unitary', 'rand_gate_tensor']
 
 # %% ../../2-5.ipynb 3
-from tensor_network.utils import (
+from tensor_network.utils.checking import (
     iterable_have_common,
-    inverse_permutation,
     check_quantum_gate,
     check_state_tensor,
-    unify_tensor_dtypes,
 )
+from ..utils.mapping import inverse_permutation, unify_tensor_dtypes
 import torch
 from typing import List
 from einops import einsum
@@ -116,7 +115,7 @@ def apply_gate(
 
 # %% ../../3-1.ipynb 3
 from typing import Literal
-from ..utils import map_float_to_complex
+from ..utils.mapping import map_float_to_complex
 
 
 def pauli_operator(
@@ -404,7 +403,7 @@ apply_gate_batched_with_vmap = torch.vmap(__apply_gate_for_vmap, in_dims=(0, Non
 
 # %% ../../3-8.ipynb 5
 from einops import rearrange
-from ..utils import check_quantum_gate
+from ..utils.checking import check_quantum_gate
 
 
 def gate_outer_product(*gates: torch.Tensor, matrix_form: bool = False) -> torch.Tensor:
@@ -497,7 +496,7 @@ def identity_gate_tensor(
         return tensor
 
 # %% ../../tensor_gate_extra.ipynb 3
-from ..utils import check_quantum_gate
+from ..utils.checking import check_quantum_gate
 
 
 def get_control_gate_tensor(

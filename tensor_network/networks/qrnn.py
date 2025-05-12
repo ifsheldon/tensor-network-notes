@@ -15,7 +15,7 @@ cpu = torch.device("cpu")
 # %% ../../3-6.ipynb 5
 from typing import Literal
 from .adqc import ADQCNet
-from ..tensor_utils import zeros_state
+from ..utils.tensors import zeros_state
 from einops import einsum, rearrange
 from torch import nn
 from ..feature_mapping import cossin_feature_map, feature_map_to_qubit_state

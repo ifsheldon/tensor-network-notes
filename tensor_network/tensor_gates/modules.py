@@ -8,11 +8,8 @@ import torch
 from torch import nn
 from . import functional
 from typing import List, Literal
-from tensor_network.utils import (
-    check_quantum_gate,
-    view_gate_tensor_as_matrix,
-    view_gate_matrix_as_tensor,
-)
+from ..utils.checking import check_quantum_gate
+from ..utils.mapping import view_gate_tensor_as_matrix, view_gate_matrix_as_tensor
 
 # %% ../../3-4.ipynb 2
 class QuantumGate(nn.Module):
