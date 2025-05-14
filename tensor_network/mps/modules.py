@@ -80,6 +80,7 @@ class MPS:
         mode: Literal["svd", "qr"],
         truncate_dim: int | None = None,
         check_nan: bool = True,
+        normalize: bool = False,
     ):
         """
         Perform center orthogonalization on the MPS. This is an in-place operation.
@@ -95,10 +96,22 @@ class MPS:
             center = self.length + center
         if self._center is None:
             new_local_tensors = orthogonalize_arange(
-                self._mps, 0, center, mode, truncate_dim, check_nan=check_nan
+                self._mps,
+                0,
+                center,
+                mode,
+                truncate_dim=truncate_dim,
+                normalize=normalize,
+                check_nan=check_nan,
             )
             new_local_tensors = orthogonalize_arange(
-                new_local_tensors, self.length - 1, center, mode, truncate_dim, check_nan=check_nan
+                new_local_tensors,
+                self.length - 1,
+                center,
+                mode,
+                truncate_dim=truncate_dim,
+                normalize=normalize,
+                check_nan=check_nan,
             )
             for i in range(self.length):
                 self._mps[i] = new_local_tensors[i]

@@ -282,6 +282,7 @@ def orthogonalize_left2right_step(
     local_tensor_idx: int,
     mode: Literal["svd", "qr"],
     truncate_dim: int | None = None,
+    normalize: bool = False,
     return_locals: bool = False,
     check_nan: bool = True,
 ) -> List[torch.Tensor] | Tuple[torch.Tensor, torch.Tensor]:
@@ -329,6 +330,9 @@ def orthogonalize_left2right_step(
     else:
         u, r = torch.linalg.qr(view_matrix)
 
+    if normalize:
+        r /= r.norm()
+
     new_local_tensor = u.reshape(
         shape[0], shape[1], -1
     )  # (virtual_dim, physical_dim, virtual_dim or truncate_dim)
@@ -354,6 +358,7 @@ def orthogonalize_right2left_step(
     local_tensor_idx: int,
     mode: Literal["svd", "qr"],
     truncate_dim: int | None = None,
+    normalize: bool = False,
     return_locals: bool = False,
     check_nan: bool = True,
 ) -> List[torch.Tensor] | Tuple[torch.Tensor, torch.Tensor]:
@@ -402,6 +407,9 @@ def orthogonalize_right2left_step(
     else:
         u, r = torch.linalg.qr(view_matrix)
 
+    if normalize:
+        r /= r.norm()
+
     new_local_tensor = u.t().reshape(
         -1, shape[1], shape[2]
     )  # (virtual_dim or truncate_dim, physical_dim, virtual_dim)
@@ -428,6 +436,7 @@ def orthogonalize_arange(
     end_idx: int,
     mode: Literal["svd", "qr"],
     truncate_dim: int | None = None,
+    normalize: bool = False,
     return_changed: bool = False,
     check_nan: bool = True,
 ) -> List[torch.Tensor] | Tuple[List[torch.Tensor], List[int]]:
@@ -456,7 +465,13 @@ def orthogonalize_arange(
     if start_idx < end_idx:
         for idx in range(start_idx, end_idx, 1):
             local, local_right = orthogonalize_left2right_step(
-                mps_tensors, idx, mode, truncate_dim, return_locals=True, check_nan=check_nan
+                mps_tensors,
+                idx,
+                mode,
+                truncate_dim=truncate_dim,
+                normalize=normalize,
+                return_locals=True,
+                check_nan=check_nan,
             )
             mps_tensors[idx] = local
             mps_tensors[idx + 1] = local_right
@@ -465,7 +480,13 @@ def orthogonalize_arange(
     elif start_idx > end_idx:
         for idx in range(start_idx, end_idx, -1):
             local_left, local = orthogonalize_right2left_step(
-                mps_tensors, idx, mode, truncate_dim, return_locals=True, check_nan=check_nan
+                mps_tensors,
+                idx,
+                mode,
+                truncate_dim=truncate_dim,
+                normalize=normalize,
+                return_locals=True,
+                check_nan=check_nan,
             )
             mps_tensors[idx - 1] = local_left
             mps_tensors[idx] = local
