@@ -75,7 +75,11 @@ class MPS:
         self._center: int | None = None
 
     def center_orthogonalization_(
-        self, center: int, mode: Literal["svd", "qr"], truncate_dim: int | None = None
+        self,
+        center: int,
+        mode: Literal["svd", "qr"],
+        truncate_dim: int | None = None,
+        check_nan: bool = True,
     ):
         """
         Perform center orthogonalization on the MPS. This is an in-place operation.
@@ -84,20 +88,29 @@ class MPS:
             center: int, the center of the MPS.
             mode: Literal["svd", "qr"], the mode of orthogonalization.
             truncate_dim: int | None, the dimension to be truncated. If None, no truncation will be performed.
+            check_nan: bool, whether to check the nan value in the results. If True, the nan value will be checked.
         """
         assert -self.length <= center < self.length, "center out of range"
         if center < 0:
             center = self.length + center
         if self._center is None:
-            new_local_tensors = orthogonalize_arange(self._mps, 0, center, mode, truncate_dim)
             new_local_tensors = orthogonalize_arange(
-                new_local_tensors, self.length - 1, center, mode, truncate_dim
+                self._mps, 0, center, mode, truncate_dim, check_nan=check_nan
+            )
+            new_local_tensors = orthogonalize_arange(
+                new_local_tensors, self.length - 1, center, mode, truncate_dim, check_nan=check_nan
             )
             for i in range(self.length):
                 self._mps[i] = new_local_tensors[i]
         elif self.center != center:
             new_local_tensors, changed_indices = orthogonalize_arange(
-                self._mps, self.center, center, mode, truncate_dim, return_changed=True
+                self._mps,
+                self.center,
+                center,
+                mode,
+                truncate_dim,
+                return_changed=True,
+                check_nan=check_nan,
             )
             for changed_idx in changed_indices:
                 self._mps[changed_idx] = new_local_tensors[changed_idx]
