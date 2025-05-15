@@ -131,6 +131,17 @@ class MPS:
             # when self.center == center
             pass
         self._center = center
+        if normalize:
+            self.center_normalize_()
+
+    def center_normalize_(self):
+        """
+        Normalize the center tensor of the MPS.
+        """
+        assert self.center is not None, (
+            "The MPS is not center orthogonalized. Perform center orthogonalization first."
+        )
+        self._mps[self.center] /= self._mps[self.center].norm()
 
     def force_set_local_tensor_(self, i: int, value: torch.Tensor):
         """
