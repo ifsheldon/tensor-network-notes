@@ -79,15 +79,13 @@ def calc_gradient(
         env_right_vector,
         "batch left, batch physical, batch right -> batch left physical right",
     )
-    # norm = einsum(
-    #     current_tensor,
-    #     raw_grad,
-    #     "left physical right, batch left physical right -> batch",
-    # )
-    norm = torch.einsum("apb,napb->n", current_tensor, raw_grad)
+    norm = einsum(
+        current_tensor,
+        raw_grad,
+        "left physical right, batch left physical right -> batch",
+    )
     norm += torch.sign(norm) * EPS  # add a small number to avoid division by zero
-    # grad = (raw_grad / norm.view(-1, 1, 1, 1)).mean(dim=0)
-    grad_part = torch.einsum("napb,n->apb", raw_grad, 1 / norm) / norm.numel()
+    grad_part = (raw_grad / norm.view(-1, 1, 1, 1)).mean(dim=0)
     grad = 2 * (current_tensor - grad_part)
     grad_shape = grad.shape
     assert grad_shape == current_tensor.shape
@@ -177,7 +175,6 @@ def train_gmps(
     assert dataset_size % batch_size == 0
     assert mps.mps_type == MPSType.Open
     # prepare mps, normalize first to avoid numerical instability
-    # mps.normalize_()
     mps.center_orthogonalization_(0, mode="qr", normalize=True, check_nan=True)
     init_nll = eval_nll(samples=samples, mps=mps, device=device)
     print(f"Initially, nll = {init_nll}")
