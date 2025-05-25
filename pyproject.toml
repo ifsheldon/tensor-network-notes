@@ -18,7 +18,13 @@ mlx = ["mlx>=0.25.0"]
 
 torch = ["torch>=2.6.0", "torchmetrics>=1.7.1", "torchvision>=0.21.0"]
 
-dev = ["nbdev>=2.3.37", "poethepoet>=0.33.1", "pytest>=8.3.5", "ruff>=0.11.5"]
+dev = [
+    "nbdev>=2.3.37",
+    "poethepoet>=0.33.1",
+    "pytest>=8.3.5",
+    "ruff>=0.11.5",
+    "safetensors>=0.5.3",
+]
 
 notebook = [
     "matplotlib>=3.10.1",
