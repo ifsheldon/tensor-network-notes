@@ -20,6 +20,7 @@ from tensor_network.mps.functional import (
 )
 import sys
 from einops import einsum
+from safetensors.torch import save_file, load_file
 
 
 class MPS:
@@ -72,7 +73,32 @@ class MPS:
 
         self._requires_grad: bool = requires_grad
         self._mps: List[torch.Tensor] = mps_tensors
+        self.set_requires_grad_(requires_grad)
         self._center: int | None = None
+
+    def set_requires_grad_(self, requires_grad: bool):
+        self._requires_grad = requires_grad
+        for t in self._mps:
+            t.requires_grad = requires_grad
+
+    def save_to_safetensors(self, path: str):
+        tensor_dict = {f"{i}": t for i, t in enumerate(self._mps)}
+        tensor_dict["center"] = (
+            torch.tensor(-1) if self.center is None else torch.tensor(self.center)
+        )
+        save_file(tensor_dict, path)
+
+    @staticmethod
+    def load_from_safetensors(path: str, requires_grad: bool) -> "MPS":
+        tensor_dict = load_file(path)
+        center = tensor_dict.pop("center").item()
+        mps_tensors = [None] * len(tensor_dict)
+        for i, t in tensor_dict.items():
+            i = int(i)
+            mps_tensors[i] = t
+        mps = MPS(mps_tensors=mps_tensors, requires_grad=requires_grad)
+        mps._center = None if center == -1 else center
+        return mps
 
     def center_orthogonalization_(
         self,
