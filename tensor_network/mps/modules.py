@@ -372,6 +372,14 @@ class MPS:
     def center(self) -> int | None:
         return self._center
 
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return self._dtype
+
     @staticmethod
     def from_state_tensor(
         state_tensor: torch.Tensor, max_rank: int | None = None, use_svd: bool = False
