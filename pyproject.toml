@@ -12,11 +12,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mlx = ["mlx>=0.25.0"]
+mlx = ["mlx>=0.26.0"]
 
 [dependency-groups]
 
-torch = ["torch>=2.6.0", "torchmetrics>=1.7.1", "torchvision>=0.21.0"]
+torch = ["torch>=2.7.0", "torchmetrics>=1.7.1", "torchvision>=0.22.0"]
 
 dev = [
     "nbdev>=2.3.37",
