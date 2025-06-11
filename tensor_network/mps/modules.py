@@ -302,14 +302,14 @@ class MPS:
         return self
 
     def one_body_reduced_density_matrix(
-        self, *, idx: int, inplace_mutation: bool = False
+        self, *, idx: int, do_tracing: bool, inplace_mutation: bool = False
     ) -> torch.Tensor:
         assert 0 <= idx < self.length, "idx must be in [0, length - 1]"
         if self.center is None:  # TODO: optimize this branch
             # maybe we can just use einsum here, need some benchmarking
             if inplace_mutation:
                 self.center_orthogonalization_(idx, "qr")
-                return self.one_body_reduced_density_matrix(idx=idx)
+                return self.one_body_reduced_density_matrix(idx=idx, do_tracing=do_tracing)
             else:
                 # do center orthogonalization out of place
                 local_tensors = self.local_tensors
@@ -325,7 +325,7 @@ class MPS:
             else:  # TODO: optimize this branch
                 if inplace_mutation:
                     self.center_orthogonalization_(idx, "qr")
-                    return self.one_body_reduced_density_matrix(idx=idx)
+                    return self.one_body_reduced_density_matrix(idx=idx, do_tracing=do_tracing)
                 else:
                     # moving center out of place
                     local_tensors = self.local_tensors
@@ -335,11 +335,15 @@ class MPS:
                     )
                     center_tensor = local_tensors[new_center]
 
-        return einsum(
+        rdm = einsum(
             center_tensor,
             center_tensor.conj(),
             "left mid right, left mid_conj right -> mid mid_conj",
         )
+        if do_tracing:
+            return rdm / rdm.trace()
+        else:
+            return rdm
 
     @property
     def center_tensor(self) -> torch.Tensor | None:
