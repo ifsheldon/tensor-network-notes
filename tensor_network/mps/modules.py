@@ -392,3 +392,46 @@ class MPS:
         mps = MPS(mps_tensors=local_tensors)
         mps._center = len(local_tensors) - 1
         return mps
+
+# %% ../../4-6.ipynb 4
+from .functional import project_multi_qubits
+
+# monkey patches from 4-6.ipynb to avoid code clutter in 4-2.ipynb
+
+
+def _project_multi_qubits(
+    self, qubit_indices: List[int], project_to_states: torch.Tensor | List[int]
+) -> MPS:
+    """
+    Do projection of multiple qubits of this MPS, returning a new MPS.
+
+    Args:
+        qubit_indices: List of indices of the qubits to project.
+        project_to_states: List of states to project to.
+
+    Returns:
+        MPS, the new MPS after projection.
+    """
+    local_tensors = self._mps
+    new_local_tensors = project_multi_qubits(local_tensors, qubit_indices, project_to_states)
+    return MPS(mps_tensors=new_local_tensors)
+
+
+MPS.project_multi_qubits = _project_multi_qubits
+
+
+def _project_one_qubit(self, qubit_idx: int, project_to_state: torch.Tensor | int) -> MPS:
+    assert isinstance(project_to_state, (torch.Tensor, int)), (
+        "project_to_state must be a tensor or an integer"
+    )
+    if isinstance(project_to_state, int):
+        project_to_states = [project_to_state]
+    else:
+        assert project_to_state.ndimension() == 1, "project_to_state must be a 1D tensor"
+        project_to_states = project_to_state.unsqueeze(0)
+
+    qubit_indices = [qubit_idx]
+    return self.project_multi_qubits(qubit_indices, project_to_states)
+
+
+MPS.project_one_qubit = _project_one_qubit
