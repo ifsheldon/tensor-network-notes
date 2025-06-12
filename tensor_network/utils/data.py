@@ -34,7 +34,7 @@ def load_iris(*, force_single_precision=False) -> Tuple[torch.Tensor, torch.Tens
 # %% ../../0-utils-data.ipynb 3
 @cache
 def get_mnist_datasets(
-    cache_path: str, *, normalization: bool = True
+    cache_path: str, *, normalization: bool
 ) -> Tuple[data.Dataset, data.Dataset]:
     """
     Get the MNIST datasets.
