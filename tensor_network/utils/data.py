@@ -46,8 +46,6 @@ def get_mnist_datasets(
         Tuple[data.Dataset, data.Dataset]: The MNIST train and test datasets.
     """
     if normalization:
-        transform = transforms.Compose([transforms.ToTensor()])
-    else:
         transform = transforms.Compose(
             [
                 transforms.ToTensor(),
@@ -56,6 +54,8 @@ def get_mnist_datasets(
                 ),  # normalization, see https://discuss.pytorch.org/t/normalization-in-the-mnist-example/457
             ]
         )
+    else:
+        transform = transforms.Compose([transforms.ToTensor()])
 
     mnist_train_set = datasets.MNIST(
         root=cache_path, train=True, download=True, transform=transform
