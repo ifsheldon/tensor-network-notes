@@ -7,7 +7,9 @@ __all__ = ['cossin_feature_map', 'feature_map_to_qubit_state', 'linear_mapping']
 import torch
 
 # %% ../3-5.ipynb 16
-def cossin_feature_map(samples: torch.Tensor, theta: float = 1.0) -> torch.Tensor:
+def cossin_feature_map(
+    samples: torch.Tensor, theta: float = 1.0, check_range: bool = True
+) -> torch.Tensor:
     """
     Apply cossin feature mapping for qubit systems (d=2).
 
@@ -25,6 +27,11 @@ def cossin_feature_map(samples: torch.Tensor, theta: float = 1.0) -> torch.Tenso
     # Ensure samples is a 2D tensor
     if samples.ndimension() == 1:
         samples = samples.unsqueeze(0)  # Add batch dimension if missing
+
+    if check_range:
+        assert torch.all((samples >= 0.0) & (samples <= 1.0)), (
+            "Samples should be between 0 and 1. This is usually required. To override this, set check_range=False."
+        )
 
     # Calculate the cosine and sine components
     angle = samples * (theta * torch.pi)
