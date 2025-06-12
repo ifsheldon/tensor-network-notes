@@ -408,10 +408,12 @@ def generate_sample_with_gmps(
             assert rdm.shape == (2, 2)
             lm = rdm.diag()
             prob_1 = lm[1]
-            state = torch.bernoulli(prob_1).to(torch.long)
+            p1 = prob_1.cpu().item()
+            assert 0.0 <= p1 <= 1.0, f"probability should be between 0 and 1, got {p1}"
+            state = torch.bernoulli(prob_1).to(torch.long).cpu().item()
             gen_idx_on_sample = gen_indices[pos]
             sample_i[gen_idx_on_sample] = state
-            new_mps_i = mps_i.project_one_qubit(gen_idx, state.cpu().item())
+            new_mps_i = mps_i.project_one_qubit(gen_idx, state)
             # the center of mps_i is gen_idx and the qubit at gen_idx has been projected
             new_mps_i._center = max(0, mps_i.center - 1)
             mps_i = new_mps_i

@@ -664,8 +664,10 @@ def project_multi_qubits(
     for i in range(len(local_tensors)):
         local_tensor = local_tensors[i]
         if local_tensor.ndimension() == 2:
-            local_tensor = local_tensor.unsqueeze(1)  # (left, physical, right)
+            local_tensor = local_tensor.unsqueeze(1)  # (left, right) -> (left, 1, right)
         else:
             assert local_tensor.ndimension() == 3, "Unexpected tensor dimension: bug?"
+
+        local_tensors[i] = local_tensor
 
     return local_tensors
