@@ -12,6 +12,10 @@ from einops import einsum, repeat
 
 # %% ../../4-4.ipynb 6
 class ResMPSSimple(nn.Module):
+    """
+    A basic residual MPS model.
+    """
+
     def __init__(
         self,
         *,

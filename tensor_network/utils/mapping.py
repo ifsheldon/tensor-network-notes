@@ -11,6 +11,13 @@ from .checking import check_quantum_gate
 
 # %% ../../0-utils-mapping.ipynb 2
 def inverse_permutation(permutation: List[int]) -> List[int]:
+    """
+    Inverse a permutation.
+    Args:
+        permutation: The permutation to inverse.
+    Returns:
+        The inverse permutation.
+    """
     permutation = torch.tensor(permutation, dtype=torch.long)
     inv = torch.empty_like(permutation)
     inv[permutation] = torch.arange(permutation.size(0))

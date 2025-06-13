@@ -24,6 +24,10 @@ from safetensors.torch import save_file, load_file
 
 
 class MPS:
+    """
+    Matrix Product State (MPS) class.
+    """
+
     def __init__(
         self,
         *,
@@ -36,6 +40,19 @@ class MPS:
         device: torch.device | None = None,
         requires_grad: bool | None = None,
     ) -> None:
+        """
+        Initialize an MPS. It can be initialized from a list of local tensors, or from paramters.
+
+        Args:
+            mps_tensors: List[torch.Tensor] | None, the local tensors of the MPS. If None, the MPS will be initialized from parameters.
+            length: int | None, the length of the MPS. Should be provided if mps_tensors is None.
+            physical_dim: int | None, the physical dimension of the MPS. Should be provided if mps_tensors is None.
+            virtual_dim: int | None, the virtual dimension of the MPS. Should be provided if mps_tensors is None.
+            mps_type: MPSType | None, the type of the MPS. Should be provided if mps_tensors is None.
+            dtype: torch.dtype | None, the dtype of the MPS. Should be provided if mps_tensors is None.
+            device: torch.device | None, the device of the MPS. Should be provided if mps_tensors is None.
+            requires_grad: bool | None, whether the MPS requires gradient.
+        """
         if mps_tensors is None:
             assert (
                 length is not None
@@ -77,11 +94,23 @@ class MPS:
         self._center: int | None = None
 
     def set_requires_grad_(self, requires_grad: bool):
+        """
+        Set the requires_grad attribute of the MPS.
+
+        Args:
+            requires_grad: bool, whether the MPS requires gradient.
+        """
         self._requires_grad = requires_grad
         for t in self._mps:
             t.requires_grad = requires_grad
 
     def save_to_safetensors(self, path: str):
+        """
+        Save the MPS to a safetensors file.
+
+        Args:
+            path: str, the path to save the MPS.
+        """
         tensor_dict = {f"{i}": t for i, t in enumerate(self._mps)}
         tensor_dict["center"] = (
             torch.tensor(-1) if self.center is None else torch.tensor(self.center)
@@ -90,6 +119,16 @@ class MPS:
 
     @staticmethod
     def load_from_safetensors(path: str, requires_grad: bool) -> "MPS":
+        """
+        Load the MPS from a safetensors file.
+
+        Args:
+            path: str, the path to load the MPS.
+            requires_grad: bool, whether the MPS requires gradient.
+
+        Returns:
+            MPS, the MPS loaded from the safetensors file.
+        """
         tensor_dict = load_file(path)
         center = tensor_dict.pop("center").item()
         mps_tensors = [None] * len(tensor_dict)
@@ -291,6 +330,16 @@ class MPS:
                         )
 
     def to_(self, dtype: torch.dtype | None = None, device: torch.device | None = None) -> "MPS":
+        """
+        Convert the MPS to the given dtype and device in-place.
+
+        Args:
+            dtype: torch.dtype | None, the dtype to convert to.
+            device: torch.device | None, the device to convert to.
+
+        Returns:
+            MPS, the MPS converted to the given dtype and device.
+        """
         if dtype is not None and self._dtype != dtype:
             for i in range(self.length):
                 self._mps[i] = self._mps[i].to(dtype=dtype)
@@ -304,6 +353,13 @@ class MPS:
     def one_body_reduced_density_matrix(
         self, *, idx: int, do_tracing: bool, inplace_mutation: bool = False
     ) -> torch.Tensor:
+        """
+        Calculate the one-body reduced density matrix of the MPS.
+
+        Args:
+            idx: int, the index of the qubit to calculate the reduced density matrix of.
+            do_tracing: bool, whether to do tracing.
+        """
         assert 0 <= idx < self.length, "idx must be in [0, length - 1]"
         if self.center is None:  # TODO: optimize this branch
             # maybe we can just use einsum here, need some benchmarking
@@ -388,6 +444,17 @@ class MPS:
     def from_state_tensor(
         state_tensor: torch.Tensor, max_rank: int | None = None, use_svd: bool = False
     ) -> "MPS":
+        """
+        Initialize an MPS from a state tensor.
+
+        Args:
+            state_tensor: torch.Tensor, the state tensor to initialize the MPS from.
+            max_rank: int | None, the maximum rank of the MPS. If specified, the MPS will be truncated to the given rank using TT decomposition.
+            use_svd: bool, whether to use SVD to truncate the MPS.
+
+        Returns:
+            MPS, the MPS initialized from the state tensor.
+        """
         local_tensors, _ = tt_decomposition(state_tensor, max_rank=max_rank, use_svd=use_svd)
         mps = MPS(mps_tensors=local_tensors)
         mps._center = len(local_tensors) - 1
@@ -421,6 +488,13 @@ MPS.project_multi_qubits = _project_multi_qubits
 
 
 def _project_one_qubit(self, qubit_idx: int, project_to_state: torch.Tensor | int) -> MPS:
+    """
+    Project one qubit of this MPS, returning a new MPS.
+
+    Args:
+        qubit_idx: int, the index of the qubit to project.
+        project_to_state: torch.Tensor | int, the state to project to.
+    """
     assert isinstance(project_to_state, (torch.Tensor, int)), (
         "project_to_state must be a tensor or an integer"
     )

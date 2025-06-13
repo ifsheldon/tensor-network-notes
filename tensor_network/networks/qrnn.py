@@ -160,6 +160,16 @@ class ADQCRNN(nn.Module):
 def series_sin_cos(
     length: int, coeff_sin: torch.Tensor, coeff_cos: torch.Tensor, k_step: float = 0.02
 ) -> torch.Tensor:
+    """
+    Calculate a series of cos and sin waves combined.
+    Args:
+        length (int): The length of the series.
+        coeff_sin (torch.Tensor): The coefficients of the sin waves.
+        coeff_cos (torch.Tensor): The coefficients of the cos waves.
+        k_step (float): The step size of the time steps.
+    Returns:
+        torch.Tensor: The series of cos and sin waves combined.
+    """
     assert coeff_sin.ndim == 1 and coeff_cos.ndim == 1
     assert coeff_sin.numel() == coeff_cos.numel()
     assert coeff_sin.device == coeff_cos.device
@@ -181,6 +191,15 @@ def series_sin_cos(
 def prepare_series_samples(
     series: torch.Tensor, sample_length: int, step_size: int
 ) -> torch.Tensor:
+    """
+    Prepare samples from a series.
+    Args:
+        series (torch.Tensor): The series to prepare samples from.
+        sample_length (int): The length of the samples.
+        step_size (int): The step size of the samples.
+    Returns:
+        torch.Tensor: The samples.
+    """
     assert sample_length >= step_size >= 1
     length = series.shape[0]
     assert length >= sample_length

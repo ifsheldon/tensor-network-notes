@@ -86,6 +86,19 @@ def load_mnist_images(
     classes: int | Iterable[int] | None = None,
     normalization: bool = True,
 ) -> torch.Tensor:
+    """
+    Load MNIST images from the cache directory.
+
+    Args:
+        cache_path: The path to the cache directory.
+        num: The number of images to load.
+        from_subset: The subset of the dataset to load.
+        shuffle: Whether to shuffle the dataset.
+        classes: The classes to load.
+        normalization: Whether to normalize the images based on the mean and standard deviation of the MNIST dataset.
+    Returns:
+        torch.Tensor: The MNIST images.
+    """
     assert num is None or num > 0
     assert classes is None or isinstance(classes, (int, Iterable)), (
         "classes must be an integer or an iterable of integers"

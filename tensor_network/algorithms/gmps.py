@@ -107,6 +107,17 @@ def eval_nll(
     device: torch.device,
     return_avg: bool = True,
 ) -> torch.Tensor:
+    """
+    Evaluate the negative log likelihood of the MPS, given the feature-mapped samples.
+
+    Args:
+        samples: torch.Tensor, the feature-mapped samples.
+        mps: MPS, the MPS to evaluate the negative log likelihood of.
+        device: torch.device, the device to evaluate the negative log likelihood on.
+        return_avg: bool, whether to return the average negative log likelihood.
+    Returns:
+        torch.Tensor, the negative log likelihood of the MPS.
+    """
     assert samples.ndim == 3  # (dataset_size, feature_num, feature_dim)
     assert mps.center is not None
     dataset_size, feature_num, _ = samples.shape
@@ -175,6 +186,20 @@ def train_gmps(
     device: torch.device,
     enable_tsgo: bool,
 ) -> Tuple[torch.Tensor, MPS]:
+    """
+    Train a MPS model with the GMPS algorithm.
+
+    Args:
+        samples: torch.Tensor, the feature-mapped samples.
+        batch_size: int, the batch size.
+        mps: MPS, the MPS to train.
+        sweep_times: int, the number of sweeps/training epochs.
+        lr: float, the learning rate.
+        device: torch.device, the device to train on.
+        enable_tsgo: bool, whether to enable the TSGO algorithm.
+    Returns:
+        Tuple[torch.Tensor, MPS], the training losses and the trained MPS.
+    """
     dataset_size = samples.shape[0]
     assert dataset_size % batch_size == 0
     assert mps.mps_type == MPSType.Open
@@ -339,6 +364,9 @@ def labels_to_binary(labels: torch.Tensor, num_bits: int) -> torch.Tensor:
 
 
 def prepend_labels(raw_images: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    """
+    Prepend the label "pixels" to the raw images.
+    """
     assert raw_images.ndim == 2  # (batch, 28 * 28)
     assert raw_images.shape[0] == labels.shape[0]
     assert raw_images.shape[1] == 28 * 28
@@ -470,6 +498,15 @@ def generate_sample_with_gmps(
 
 # %% ../../4-7.ipynb 9
 def gmps_classify(gmpss: List[MPS], data: torch.Tensor) -> torch.Tensor:
+    """
+    Use a group of MPS to classify the data.
+
+    Args:
+        gmpss: List[MPS], the group of MPS to classify the data.
+        data: torch.Tensor, the feature-mapped data to classify.
+    Returns:
+        torch.Tensor, the predictions of the data.
+    """
     num_gmps = len(gmpss)
     assert num_gmps > 0, "No GMPSs provided"
     assert data.ndim == 3, "Data must be a 3D tensor of shape (batch, feature_num, feature_dim)"

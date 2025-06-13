@@ -13,6 +13,14 @@ from ..utils.checking import check_quantum_gate
 
 # %% ../../2-6.ipynb 4
 def calc_reduced_density_matrix(state: torch.Tensor, qubit_idx: int | List[int]):
+    """
+    Calculate the reduced density matrix of a quantum state.
+    Args:
+        state (torch.Tensor): The quantum state to calculate the reduced density matrix of.
+        qubit_idx (int | List[int]): The indices of the qubits to reduce.
+    Returns:
+        torch.Tensor: The reduced density matrix.
+    """
     assert isinstance(qubit_idx, (int, list)), "qubit_idx must be an integer or a list of integers"
     if isinstance(qubit_idx, int):
         qubit_idx = [qubit_idx]
@@ -35,6 +43,15 @@ def calc_reduced_density_matrix(state: torch.Tensor, qubit_idx: int | List[int])
 def calc_observation(
     state: torch.Tensor, operator: torch.Tensor, qubit_idx: int | List[int], _fast_mode: bool = True
 ):
+    """
+    Calculate the expectation value of an operator on a quantum state.
+    Args:
+        state (torch.Tensor): The quantum state to calculate the expectation value of.
+        operator (torch.Tensor): The operator to calculate the expectation value of.
+        qubit_idx (int | List[int]): The indices of the qubits to calculate the expectation value of.
+    Returns:
+        torch.Tensor: The expectation value of the operator on the state.
+    """
     if isinstance(qubit_idx, int):
         length = 1
     else:

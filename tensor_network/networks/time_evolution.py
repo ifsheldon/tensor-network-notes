@@ -84,6 +84,10 @@ class PolarizationGate(ParameterizedGate):
 
 
 class ADQCTimeEvolution(nn.Module):
+    """
+    An ADQC network that evolves a quantum state under a Hamiltonian.
+    """
+
     def __init__(
         self,
         hamiltonian: torch.Tensor,
