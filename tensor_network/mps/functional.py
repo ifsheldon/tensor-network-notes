@@ -341,8 +341,12 @@ def orthogonalize_left2right_step(
     ]  # (virtual_dim, physical_dim, virtual_dim)
     new_local_tensor_right = torch.einsum("ab,bcd->acd", r, local_tensor_right)
     if check_nan:
-        assert not new_local_tensor.min().isnan()
-        assert not new_local_tensor_right.min().isnan()
+        assert not torch.any(torch.isnan(new_local_tensor)), (
+            "Due to numerical errors, the new local tensor may contain nan values. If you are sure that your data is correct, maybe try reinitializing a new MPS."
+        )
+        assert not torch.any(torch.isnan(new_local_tensor_right)), (
+            "Due to numerical errors, the new local tensor right may contain nan values. If you are sure that your data is correct, maybe try reinitializing a new MPS."
+        )
     if return_locals:
         return new_local_tensor, new_local_tensor_right
     else:
@@ -418,8 +422,12 @@ def orthogonalize_right2left_step(
     ]  # (virtual_dim, physical_dim, virtual_dim)
     new_local_tensor_left = torch.einsum("abc,dc->abd", local_tensor_left, r)
     if check_nan:
-        assert not new_local_tensor_left.min().isnan()
-        assert not new_local_tensor.min().isnan()
+        assert not torch.any(torch.isnan(new_local_tensor_left)), (
+            "Due to numerical errors, the new local tensor left may contain nan values. If you are sure that your data is correct, maybe try reinitializing a new MPS."
+        )
+        assert not torch.any(torch.isnan(new_local_tensor)), (
+            "Due to numerical errors, the new local tensor may contain nan values. If you are sure that your data is correct, maybe try reinitializing a new MPS."
+        )
     if return_locals:
         return new_local_tensor_left, new_local_tensor
     else:
