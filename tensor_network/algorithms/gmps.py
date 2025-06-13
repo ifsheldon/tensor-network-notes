@@ -105,6 +105,7 @@ def eval_nll(
     samples: torch.Tensor,
     mps: MPS,
     device: torch.device,
+    return_avg: bool = True,
 ) -> torch.Tensor:
     assert samples.ndim == 3  # (dataset_size, feature_num, feature_dim)
     assert mps.center is not None
@@ -155,7 +156,10 @@ def eval_nll(
         "left physical right, batch left, batch physical, batch right -> batch",
     )
 
-    nll = calc_nll(norm_factors).mean()
+    if return_avg:
+        nll = calc_nll(norm_factors).mean()
+    else:
+        nll = calc_nll(norm_factors)  # (batch)
     # restore the default device
     torch.set_default_device(prev_device)
     return nll
