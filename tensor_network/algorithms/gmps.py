@@ -193,9 +193,10 @@ def train_gmps(
     nll_losses = [init_nll]
 
     progress_bar = tqdm(range(sweep_times))
+    disable_batch_progress_bar = (dataset_size // batch_size) == 1
     for i in progress_bar:
         epoch_nll_losses = []
-        for batch_data in tqdm(dataloader, leave=False):
+        for batch_data in tqdm(dataloader, leave=False, disable=disable_batch_progress_bar):
             batch_data = batch_data[0]
             batch_size = batch_data.shape[0]
             # prepare aux variables
