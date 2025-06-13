@@ -483,6 +483,17 @@ def identity_gate_tensor(
     device: torch.device | None = None,
     _fast_mode: bool = True,
 ) -> torch.Tensor:
+    """
+    Create a tensor representation of the identity gate.
+
+    Args:
+        num_qubits: int, the number of qubits.
+        matrix_form: bool, whether to return the matrix form of the identity gate.
+        dtype: torch.dtype | None, the dtype of the identity gate tensor.
+        device: torch.device | None, the device of the identity gate tensor.
+    Returns:
+        torch.Tensor, the identity gate tensor.
+    """
     if matrix_form:
         return torch.eye(2**num_qubits, dtype=dtype, device=device)
     elif _fast_mode:
@@ -508,6 +519,18 @@ def get_control_gate_tensor(
     device: torch.device,
     _fast_mode: bool = True,
 ) -> torch.Tensor:
+    """
+    Create a tensor representation of a controlled gate.
+
+    Args:
+        num_control_qubits: int, the number of control qubits.
+        applied_gate: torch.Tensor, the gate to be applied.
+        matrix_form: bool, whether to return the matrix form of the controlled gate.
+        dtype: torch.dtype, the dtype of the controlled gate tensor.
+        device: torch.device, the device of the controlled gate tensor.
+    Returns:
+        torch.Tensor, the controlled gate tensor.
+    """
     num_applied_qubits = check_quantum_gate(applied_gate)
     num_total_qubits = num_control_qubits + num_applied_qubits
     if matrix_form or _fast_mode:
