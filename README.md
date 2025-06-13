@@ -36,6 +36,7 @@ Contributions are very welcome. Please file an issue or PR if you have any quest
 A few points to note:
 
 * The code should primarily live in notebooks, not Python scripts. We use `nbdev` to export useful code from notebooks to `tensor_network` package for reusability.
+* Run `pre-commit install`, or `uv run pre-commit install` if your shell doesn't autodetect venv
 
 ## Acknowledgements
 
