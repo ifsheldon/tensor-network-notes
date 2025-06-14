@@ -83,8 +83,8 @@ def load_mnist_images(
     num: int | None,
     from_subset: Literal["test", "train", "all"],
     shuffle: bool,
+    normalization: bool,
     classes: int | Iterable[int] | None = None,
-    normalization: bool = True,
 ) -> torch.Tensor:
     """
     Load MNIST images from the cache directory.
