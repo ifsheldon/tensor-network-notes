@@ -61,7 +61,7 @@ class FCADQCHybridClassifier(nn.Module):
         self.class_num = class_num
         if feature_map == "cossin":
             self.feature_map = cossin_feature_map
-            self.feature_map_compiled = torch.compile(self.feature_map)
+            self.feature_map_compiled = torch.compile(cossin_feature_map, dynamic=True)
             self.feature_map_kwargs = {"theta": 0.5}
         else:
             raise Exception(f"The only implemented feature map is cossin, but got {feature_map}")

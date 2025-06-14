@@ -62,7 +62,7 @@ def calc_nll(norm_factors: torch.Tensor) -> torch.Tensor:
     return nll
 
 
-@torch.compile
+@torch.compile(dynamic=True)
 def calc_gradient(
     env_left_vector: torch.Tensor,
     env_right_vector: torch.Tensor,

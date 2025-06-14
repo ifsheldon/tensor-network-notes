@@ -72,7 +72,7 @@ class ADQCRNN(nn.Module):
         self.complex_dtype = torch.complex128 if double_precision else torch.complex64
         if feature_map == "cossin":
             self.feature_map = cossin_feature_map
-            self.feature_map_compiled = torch.compile(self.feature_map)
+            self.feature_map_compiled = torch.compile(cossin_feature_map, dynamic=True)
         else:
             raise Exception(f"The only implemented feature map is cossin, but got {feature_map}")
 
