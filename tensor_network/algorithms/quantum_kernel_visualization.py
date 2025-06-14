@@ -17,7 +17,18 @@ def metric_matrix_neg_log_cos_sin(
     samples: torch.Tensor,
     theta: float = torch.pi / 2 - 1e-7,
     calculation_method: Literal["deduplicate", "no_deduplicate"] = "deduplicate",
-):
+) -> torch.Tensor:
+    """
+    Calculate the distance matrix between samples.
+
+    Args:
+        samples: samples of shape (N samples, feature num)
+        theta: cossin mapping theta
+        calculation_method: "deduplicate" or "no_deduplicate", "deduplicate" use symmetry to avoid duplicate calculation
+
+    Returns:
+        distance matrix of shape (N samples, N samples)
+    """
     assert samples.ndim == 2  # (N samples, feature num)
     assert samples.min() >= 0.0, f"samples.min(): {samples.min()}"
     assert samples.max() <= 1.0, f"samples.max(): {samples.max()}"
@@ -53,9 +64,17 @@ def visualize_tsne(
     sample_distances: torch.Tensor,
     labels: torch.Tensor,
     perplexity: float,
-    n_components: int,
     learning_rate: float | Literal["auto"] = "auto",
 ):
+    """
+    Create projection from data points to 2D space using t-SNE.
+
+    Args:
+        sample_distances: distance matrix of shape (N samples, N samples)
+        labels: labels of shape (N samples,)
+        perplexity: perplexity of t-SNE
+        learning_rate: learning rate of t-SNE
+    """
     assert sample_distances.ndim == 2
     sample_num = sample_distances.shape[0]
     assert sample_num == sample_distances.shape[1]
@@ -63,13 +82,12 @@ def visualize_tsne(
     assert labels.shape[0] == sample_num
     assert sample_distances.min() >= 0.0, f"sample_distances.min(): {sample_distances.min()}"
     assert perplexity > 0.0
-    assert n_components > 0
     assert learning_rate == "auto" or learning_rate > 0.0
 
     tsne = TSNE(
         perplexity=perplexity,
         init="random",
-        n_components=n_components,
+        n_components=2,
         learning_rate=learning_rate,
         metric="precomputed",
     )
