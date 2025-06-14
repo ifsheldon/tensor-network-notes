@@ -41,4 +41,4 @@ A few points to note:
 ## Acknowledgements
 
 * Big thanks to Prof. Ran for the course
-* Thanks to Gemini 2.0 for transcribing a lot of equations
+* Thanks to Gemini 2.0 and Claude Sonnet for transcribing a lot of equations
