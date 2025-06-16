@@ -7,7 +7,7 @@ __all__ = ['lazy_classify']
 import torch
 from typing import Literal
 
-# %% ../../4-8.ipynb 17
+# %% ../../4-8.ipynb 18
 from typing import Dict, Any
 from tensor_network.algorithms.quantum_kernels import (
     metric_neg_log_cos_sin,
@@ -22,8 +22,21 @@ def lazy_classify(
     reference_samples: torch.Tensor,
     reference_labels: torch.Tensor,
     kernel: Literal["euclidean", "nll_cossin", "r_nll_cossin", "chebyshev", "cossin_chebyshev"],
-    kernel_kwargs: Dict[str, Any],
+    kernel_kwargs: Dict[str, Any] = {},
 ) -> torch.Tensor:
+    """
+    Use reference samples to classify samples. A lazy classifier with no trainable parameters.
+
+    Args:
+        samples: samples to classify, shape (N samples, feature num)
+        reference_samples: reference samples, shape (N reference samples, feature num)
+        reference_labels: labels of reference samples, shape (N reference samples,)
+        kernel: kernel to use
+        kernel_kwargs: keyword arguments for the kernel
+
+    Returns:
+        predicted labels of shape (N samples,)
+    """
     assert kernel in ["euclidean", "nll_cossin", "r_nll_cossin", "chebyshev", "cossin_chebyshev"]
     assert reference_labels.ndim == 1
     assert reference_samples.ndim == 2  # (N samples, feature num)

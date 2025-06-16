@@ -7,6 +7,7 @@ __all__ = ['metric_matrix_neg_log_cos_sin', 'metric_neg_log_cos_sin', 'metric_ne
 
 # %% ../../4-8.ipynb 2
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from ..utils.data import load_mnist_images
@@ -62,12 +63,12 @@ def metric_matrix_neg_log_cos_sin(
 
     return metric
 
-# %% ../../4-8.ipynb 15
+# %% ../../4-8.ipynb 16
 def metric_neg_log_cos_sin(
     samples: torch.Tensor,
     reference_samples: torch.Tensor,
     theta: float = torch.pi / 2 - 1e-7,
-    chunk_size: int = 2,
+    batch_size: int | None = None,
 ) -> torch.Tensor:
     """
     Calculate the distance matrix between samples and reference samples with NLL and cossin mapping.
@@ -76,7 +77,7 @@ def metric_neg_log_cos_sin(
         samples: samples of shape (N samples, feature num)
         reference_samples: reference samples of shape (N reference samples, feature num)
         theta: cossin mapping theta
-        chunk_size: chunk size in computation
+        batch_size: batch size in computation. If None, batch_size = N // 2.
 
     Returns:
         distance matrix of shape (N samples, N reference samples)
@@ -85,33 +86,30 @@ def metric_neg_log_cos_sin(
     _check_samples(reference_samples)
     assert torch.pi / 2 >= theta >= 0.0
     sample_num = samples.shape[0]
-    assert chunk_size > 0 and sample_num % chunk_size == 0, (
-        f"chunk_size: {chunk_size}, sample_num: {sample_num}"
-    )
+    if batch_size is None:
+        batch_size = sample_num // 2 if sample_num >= 2 else 1
+    dataloader = DataLoader(TensorDataset(samples), batch_size=batch_size, shuffle=False)
     ref_sample_num = reference_samples.shape[0]
+    ref_samples = reference_samples.unsqueeze(0)  # (1, ref_sample_num, feature num)
 
     metric = []
 
     # To reduce peak memory usage, we do the calculation in a loop
-    for chunk_i in range(sample_num // chunk_size):
-        start_idx = chunk_i * chunk_size
-        end_idx = start_idx + chunk_size
-        batch_samples = samples[start_idx:end_idx].unsqueeze(1)  # (chunk_size, 1, feature num)
-        ref_samples = reference_samples.unsqueeze(0)  # (1, ref_sample_num, feature num)
-        diff = batch_samples - ref_samples  # (chunk_size, ref_sample_num, feature num)
-        result = -torch.log(torch.cos(diff * theta)).mean(dim=2)  # (chunk_size, ref_sample_num)
+    for batch_i in dataloader:
+        batch_samples = batch_i[0].unsqueeze(1)  # (batch_size, 1, feature num)
+        diff = batch_samples - ref_samples  # (batch_size, ref_sample_num, feature num)
+        result = -torch.log(torch.cos(diff * theta)).mean(dim=2)  # (batch_size, ref_sample_num)
         metric.append(result)
 
     metric = torch.cat(metric, dim=0)
 
     assert not torch.isnan(metric).any(), "if there's nan, try to reduce theta"
     assert metric.shape == (sample_num, ref_sample_num)
-
     return metric
 
 
 def metric_neg_chebyshev(
-    samples: torch.Tensor, reference_samples: torch.Tensor, chunk_size: int = 100
+    samples: torch.Tensor, reference_samples: torch.Tensor, batch_size: int | None = None
 ) -> torch.Tensor:
     """
     Calculate the distance matrix between samples and reference samples with negative Chebyshev distance.
@@ -119,7 +117,7 @@ def metric_neg_chebyshev(
     Args:
         samples: samples of shape (N samples, feature num)
         reference_samples: reference samples of shape (N reference samples, feature num)
-        chunk_size: chunk size in computation
+        batch_size: batch size in computation. If None, batch_size = N // 2.
 
     Returns:
         distance matrix of shape (N samples, N reference samples)
@@ -127,18 +125,17 @@ def metric_neg_chebyshev(
     _check_samples(samples)
     _check_samples(reference_samples)
     sample_num = samples.shape[0]
-    assert chunk_size > 0 and sample_num % chunk_size == 0, (
-        f"chunk_size: {chunk_size}, sample_num: {sample_num}"
-    )
+    if batch_size is None:
+        batch_size = sample_num // 2 if sample_num >= 2 else 1
+    dataloader = DataLoader(TensorDataset(samples), batch_size=batch_size, shuffle=False)
+    ref_samples = reference_samples.unsqueeze(0)  # (1, ref_sample_num, feature num)
+
     metric = []
     # To reduce peak memory usage, we do the calculation in a loop
-    for chunk_i in range(sample_num // chunk_size):
-        start_idx = chunk_i * chunk_size
-        end_idx = start_idx + chunk_size
-        batch_samples = samples[start_idx:end_idx].unsqueeze(1)  # (chunk_size, 1, feature num)
-        ref_samples = reference_samples.unsqueeze(0)  # (1, ref_sample_num, feature num)
-        diff = batch_samples - ref_samples  # (chunk_size, ref_sample_num, feature num)
-        result = diff.norm(dim=-1).min(dim=-1)[0]  # (chunk_size)
+    for batch_i in dataloader:
+        batch_samples = batch_i[0].unsqueeze(1)  # (batch_size, 1, feature num)
+        diff = batch_samples - ref_samples  # (batch_size, ref_sample_num, feature num)
+        result = diff.norm(dim=-1).min(dim=-1)[0]  # (batch_size)
         metric.append(result)
 
     metric = torch.cat(metric, dim=0)
@@ -150,7 +147,7 @@ def metric_neg_cossin_chebyshev(
     samples: torch.Tensor,
     reference_samples: torch.Tensor,
     theta: float = torch.pi / 2 - 1e-7,
-    chunk_size: int = 100,
+    batch_size: int | None = None,
 ) -> torch.Tensor:
     """
     Calculate the distance matrix between samples and reference samples with negative Chebyshev distance and cossin mapping.
@@ -159,7 +156,7 @@ def metric_neg_cossin_chebyshev(
         samples: samples of shape (N samples, feature num)
         reference_samples: reference samples of shape (N reference samples, feature num)
         theta: cossin mapping theta
-        chunk_size: chunk size in computation
+        batch_size: batch size in computation. If None, batch_size = N // 2.
 
     Returns:
         distance matrix of shape (N samples, N reference samples)
@@ -167,19 +164,18 @@ def metric_neg_cossin_chebyshev(
     _check_samples(samples)
     _check_samples(reference_samples)
     sample_num = samples.shape[0]
-    assert chunk_size > 0 and sample_num % chunk_size == 0, (
-        f"chunk_size: {chunk_size}, sample_num: {sample_num}"
-    )
+    if batch_size is None:
+        batch_size = sample_num // 2 if sample_num >= 2 else 1
+    dataloader = DataLoader(TensorDataset(samples), batch_size=batch_size, shuffle=False)
+    ref_samples = reference_samples.unsqueeze(0)  # (1, ref_sample_num, feature num)
+
     metric = []
     # To reduce peak memory usage, we do the calculation in a loop
-    for chunk_i in range(sample_num // chunk_size):
-        start_idx = chunk_i * chunk_size
-        end_idx = start_idx + chunk_size
-        batch_samples = samples[start_idx:end_idx].unsqueeze(1)  # (chunk_size, 1, feature num)
-        ref_samples = reference_samples.unsqueeze(0)  # (1, ref_sample_num, feature num)
-        diff = batch_samples - ref_samples  # (chunk_size, ref_sample_num, feature num)
-        result = -torch.log(torch.cos(diff * theta)).mean(dim=2)  # (chunk_size, ref_sample_num)
-        result = result.min(dim=-1)[0]  # (chunk_size,)
+    for batch_i in dataloader:
+        batch_samples = batch_i[0].unsqueeze(1)  # (batch_size, 1, feature num)
+        diff = batch_samples - ref_samples  # (batch_size, ref_sample_num, feature num)
+        result = -torch.log(torch.cos(diff * theta)).mean(dim=2)  # (batch_size, ref_sample_num)
+        result = result.min(dim=-1)[0]  # (batch_size,)
         assert not torch.isnan(result).any(), "if there's nan, try to reduce theta"
         metric.append(result)
 
