@@ -497,13 +497,19 @@ def generate_sample_with_gmps(
     return generated_sample
 
 # %% ../../4-7.ipynb 9
-def gmps_classify(gmpss: List[MPS], data: torch.Tensor) -> torch.Tensor:
+from tqdm.auto import tqdm
+
+
+def gmps_classify(
+    gmpss: List[MPS], data: torch.Tensor, show_progress: bool = False
+) -> torch.Tensor:
     """
     Use a group of MPS to classify the data.
 
     Args:
         gmpss: List[MPS], the group of MPS to classify the data.
         data: torch.Tensor, the feature-mapped data to classify.
+        show_progress: bool, whether to show the progress of the classification.
     Returns:
         torch.Tensor, the predictions of the data.
     """
@@ -514,7 +520,7 @@ def gmps_classify(gmpss: List[MPS], data: torch.Tensor) -> torch.Tensor:
     assert feature_num == gmpss[0].length, "Feature number mismatch"
 
     nll_of_gmps = []
-    for gmps in gmpss:
+    for gmps in tqdm(gmpss, disable=not show_progress):
         nll = eval_nll(samples=data, mps=gmps, device=gmps.device, return_avg=False)  # (batch)
         nll_of_gmps.append(nll)
 
