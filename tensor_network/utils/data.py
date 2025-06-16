@@ -85,7 +85,8 @@ def load_mnist_images(
     shuffle: bool,
     normalization: bool,
     classes: int | Iterable[int] | None = None,
-) -> torch.Tensor:
+    return_labels: bool = False,
+) -> torch.Tensor | Tuple[torch.Tensor, torch.Tensor]:
     """
     Load MNIST images from the cache directory.
 
@@ -96,8 +97,9 @@ def load_mnist_images(
         shuffle: Whether to shuffle the dataset.
         classes: The classes to load.
         normalization: Whether to normalize the images based on the mean and standard deviation of the MNIST dataset.
+        return_labels: Whether to return the labels.
     Returns:
-        torch.Tensor: The MNIST images.
+        torch.Tensor: The MNIST images. If return_labels is True, return a tuple of (images, labels).
     """
     assert num is None or num > 0
     assert classes is None or isinstance(classes, (int, Iterable)), (
@@ -136,11 +138,15 @@ def load_mnist_images(
 
         mask = torch.isin(labels, torch.tensor(classes))
         images = images[mask]
+        labels = labels[mask]
 
     if num is None:
         num = len(images)
 
-    return images[:num]
+    if return_labels:
+        return images[:num], labels[:num]
+    else:
+        return images[:num]
 
 # %% ../../0-utils-data.ipynb 4
 @cache
