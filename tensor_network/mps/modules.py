@@ -509,3 +509,36 @@ def _project_one_qubit(self, qubit_idx: int, project_to_state: torch.Tensor | in
 
 
 MPS.project_one_qubit = _project_one_qubit
+
+# %% ../../4-9.ipynb 9
+def _entanglement_entropy_onsite(
+    self: MPS, indices: List[int] | None = None, eps: float = 1e-10
+) -> torch.Tensor:
+    """
+    Calculate the onsite entanglement entropies for qubits at `indices`.
+
+    Args:
+        indices: The indices of the qubits to calculate the entanglement entropies. If `None`, calculate for all qubits.
+        eps: The small value to avoid log(0). Default is 1e-10.
+
+    Returns:
+        The entanglement entropies for the qubits at `indices`.
+    """
+    if indices is None:
+        indices = list(range(self._length))
+    assert 0 < len(indices) <= self._length, "indices must be a list of indices in [0, length)"
+
+    rdms = [
+        self.one_body_reduced_density_matrix(idx=idx, do_tracing=True, inplace_mutation=True)
+        for idx in indices
+    ]
+    rdms = torch.stack(rdms)  # (length, 2, 2)
+    eigenvalues = torch.linalg.eigvalsh(rdms)  # (length, 2)
+    probs = eigenvalues / eigenvalues.sum(dim=1, keepdim=True)  # (length, 2)
+    probs[probs < eps] = eps
+    entropies = -(probs * torch.log(probs)).sum(dim=1)  # (length,)
+    return entropies
+
+
+# monkey patch from 4-9.ipynb to avoid code clutter
+MPS.entanglement_entropy_onsite = _entanglement_entropy_onsite
