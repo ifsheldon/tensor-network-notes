@@ -502,7 +502,7 @@ from tqdm.auto import tqdm
 
 
 def gmps_classify(
-    gmpss: List[MPS], data: torch.Tensor, show_progress: bool = False
+    gmpss: List[MPS], data: torch.Tensor, progress_bar_kwargs: dict = {}
 ) -> torch.Tensor:
     """
     Use a group of MPS to classify the data.
@@ -510,7 +510,7 @@ def gmps_classify(
     Args:
         gmpss: List[MPS], the group of MPS to classify the data.
         data: torch.Tensor, the feature-mapped data to classify.
-        show_progress: bool, whether to show the progress of the classification.
+        progress_bar_kwargs: dict, the keyword arguments for the progress bar.
     Returns:
         torch.Tensor, the predictions of the data.
     """
@@ -521,7 +521,7 @@ def gmps_classify(
     assert feature_num == gmpss[0].length, "Feature number mismatch"
 
     nll_of_gmps = []
-    for gmps in tqdm(gmpss, disable=not show_progress):
+    for gmps in tqdm(gmpss, **progress_bar_kwargs):
         nll = eval_nll(samples=data, mps=gmps, device=gmps.device, return_avg=False)  # (batch)
         nll_of_gmps.append(nll)
 
