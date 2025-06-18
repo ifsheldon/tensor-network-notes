@@ -10,7 +10,7 @@ import torch
 from ..mps.modules import MPS, MPSType
 from einops import einsum
 from tqdm.auto import tqdm
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 from torch.utils.data import DataLoader, TensorDataset
 
 # %% ../../4-5.ipynb 4
@@ -185,6 +185,7 @@ def train_gmps(
     lr: float,
     device: torch.device,
     enable_tsgo: bool,
+    progress_bar_kwargs: Dict[str, Any] = {},
 ) -> Tuple[torch.Tensor, MPS]:
     """
     Train a MPS model with the GMPS algorithm.
@@ -197,6 +198,7 @@ def train_gmps(
         lr: float, the learning rate.
         device: torch.device, the device to train on.
         enable_tsgo: bool, whether to enable the TSGO algorithm.
+        progress_bar_kwargs: Dict[str, Any], the keyword arguments for the progress bar.
     Returns:
         Tuple[torch.Tensor, MPS], the training losses and the trained MPS.
     """
@@ -206,7 +208,6 @@ def train_gmps(
     # prepare mps, normalize first to avoid numerical instability
     mps.center_orthogonalization_(0, mode="qr", normalize=True, check_nan=True)
     init_nll = eval_nll(samples=samples, mps=mps, device=device)
-    print(f"Initially, nll = {init_nll}")
 
     # set default device to device
     prev_device = torch.get_default_device()
@@ -221,7 +222,7 @@ def train_gmps(
 
     nll_losses = [init_nll]
 
-    progress_bar = tqdm(range(sweep_times))
+    progress_bar = tqdm(range(sweep_times), **progress_bar_kwargs)
     disable_batch_progress_bar = (dataset_size // batch_size) == 1
     for i in progress_bar:
         epoch_nll_losses = []
