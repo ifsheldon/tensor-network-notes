@@ -461,14 +461,14 @@ class MPS:
         return mps
 
 # %% ../../4-6.ipynb 4
-from .functional import project_multi_qubits
+from .functional import project_multi_qubits as project_multi_qubits_func
+from fastcore.basics import patch
 
-# monkey patches from 4-6.ipynb to avoid code clutter in 4-2.ipynb
 
-
-def _project_multi_qubits(
-    self, qubit_indices: List[int], project_to_states: torch.Tensor | List[int]
-) -> MPS:
+@patch
+def project_multi_qubits(
+    self: MPS, qubit_indices: List[int], project_to_states: torch.Tensor | List[int]
+) -> Self:
     """
     Do projection of multiple qubits of this MPS, returning a new MPS.
 
@@ -480,14 +480,12 @@ def _project_multi_qubits(
         MPS, the new MPS after projection.
     """
     local_tensors = self._mps
-    new_local_tensors = project_multi_qubits(local_tensors, qubit_indices, project_to_states)
+    new_local_tensors = project_multi_qubits_func(local_tensors, qubit_indices, project_to_states)
     return MPS(mps_tensors=new_local_tensors)
 
 
-MPS.project_multi_qubits = _project_multi_qubits
-
-
-def _project_one_qubit(self, qubit_idx: int, project_to_state: torch.Tensor | int) -> MPS:
+@patch
+def project_one_qubit(self: MPS, qubit_idx: int, project_to_state: torch.Tensor | int) -> Self:
     """
     Project one qubit of this MPS, returning a new MPS.
 
@@ -507,11 +505,9 @@ def _project_one_qubit(self, qubit_idx: int, project_to_state: torch.Tensor | in
     qubit_indices = [qubit_idx]
     return self.project_multi_qubits(qubit_indices, project_to_states)
 
-
-MPS.project_one_qubit = _project_one_qubit
-
 # %% ../../4-9.ipynb 9
-def _entanglement_entropy_onsite(
+@patch
+def entanglement_entropy_onsite(
     self: MPS, indices: List[int] | None = None, eps: float = 1e-10
 ) -> torch.Tensor:
     """
@@ -538,7 +534,3 @@ def _entanglement_entropy_onsite(
     probs[probs < eps] = eps
     entropies = -(probs * torch.log(probs)).sum(dim=1)  # (length,)
     return entropies
-
-
-# monkey patch from 4-9.ipynb to avoid code clutter
-MPS.entanglement_entropy_onsite = _entanglement_entropy_onsite
