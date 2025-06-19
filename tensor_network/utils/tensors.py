@@ -30,18 +30,23 @@ from typing import List
 import einops
 
 
-def outer_product(vectors: List[torch.Tensor]) -> torch.Tensor:
+def outer_product(vectors: List[torch.Tensor] | torch.Tensor) -> torch.Tensor:
     """
     Computes the outer product of a list of vectors.
     Args:
-        vectors (List[torch.Tensor]): A list of 1D tensors (vectors).
+        vectors (List[torch.Tensor] | torch.Tensor): A list of 1D tensors (vectors) or a 2D tensor whose rows are vectors to be outer-producted.
     Returns:
         torch.Tensor: The outer product of the input vectors.
     """
-    assert isinstance(vectors, list), "Input must be a list of tensors"
-    assert all(isinstance(v, torch.Tensor) for v in vectors), "All elements must be tensors"
-    for i, v in enumerate(vectors):
-        assert v.dim() == 1, f"Expected 1D tensor, got {v.dim()}D tensor at index {i}"
+    assert isinstance(vectors, (List, torch.Tensor)), "Input must be a list of tensors or a tensor"
+    if isinstance(vectors, torch.Tensor):
+        assert vectors.ndim == 2, "Input tensor must be 2D"
+        vectors = [vectors[i] for i in range(vectors.shape[0])]
+    else:
+        assert all(isinstance(v, torch.Tensor) for v in vectors), "All elements must be tensors"
+        for i, v in enumerate(vectors):
+            assert v.dim() == 1, f"Expected 1D tensor, got {v.dim()}D tensor at index {i}"
+
     num_vectors = len(vectors)
     assert num_vectors >= 2, "At least two vectors are required for outer product"
     vec_dim_names = [f"v{i}" for i in range(num_vectors)]
