@@ -17,7 +17,6 @@ from torch.utils.data import DataLoader, TensorDataset
 EPS = 1e-14
 
 
-@torch.compile(dynamic=True)
 def calc_left_to_right_step(
     current_tensor: torch.Tensor,
     current_env_vector_left: torch.Tensor,
@@ -36,7 +35,6 @@ def calc_left_to_right_step(
     return next_env_vector_left / (current_norm_factor + EPS), current_norm_factor.squeeze(-1)
 
 
-@torch.compile(dynamic=True)
 def calc_right_to_left_step(
     current_tensor: torch.Tensor,
     current_env_vector_right: torch.Tensor,
@@ -55,7 +53,6 @@ def calc_right_to_left_step(
     return next_env_vector_right / (current_norm_factor + EPS), current_norm_factor.squeeze(-1)
 
 
-@torch.compile(dynamic=True)
 def calc_nll(norm_factors: torch.Tensor) -> torch.Tensor:
     """
     Calculate the negative log likelihood from the norm factors in a batch
