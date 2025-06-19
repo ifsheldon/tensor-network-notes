@@ -7,7 +7,7 @@ __all__ = ['MPS']
 
 # %% ../../4-2.ipynb 2
 import torch
-from typing import List, Tuple, Literal
+from typing import List, Tuple, Literal, Self
 from .functional import gen_random_mps_tensors, MPSType
 
 # %% ../../4-2.ipynb 12
@@ -118,7 +118,7 @@ class MPS:
         save_file(tensor_dict, path)
 
     @staticmethod
-    def load_from_safetensors(path: str, requires_grad: bool) -> "MPS":
+    def load_from_safetensors(path: str, requires_grad: bool) -> Self:
         """
         Load the MPS from a safetensors file.
 
@@ -329,7 +329,7 @@ class MPS:
                             f"Local Tensor {i} is not orthogonal, {diff_norm=}"
                         )
 
-    def to_(self, dtype: torch.dtype | None = None, device: torch.device | None = None) -> "MPS":
+    def to_(self, dtype: torch.dtype | None = None, device: torch.device | None = None) -> Self:
         """
         Convert the MPS to the given dtype and device in-place.
 
@@ -443,7 +443,7 @@ class MPS:
     @staticmethod
     def from_state_tensor(
         state_tensor: torch.Tensor, max_rank: int | None = None, use_svd: bool = False
-    ) -> "MPS":
+    ) -> Self:
         """
         Initialize an MPS from a state tensor.
 

@@ -8,7 +8,7 @@ __all__ = ['MPSType', 'gen_random_mps_tensors', 'calc_global_tensor_by_contract'
 # %% ../../4-1.ipynb 2
 import torch
 from ..utils.tensors import tensor_contract
-from typing import List
+from typing import List, Self
 from enum import Enum
 
 # %% ../../4-1.ipynb 3
@@ -21,7 +21,7 @@ class MPSType(Enum):
     Periodic = "Periodic"
 
     @staticmethod
-    def get_mps_type(mps_tensors: List[torch.Tensor]) -> "MPSType":
+    def get_mps_type(mps_tensors: List[torch.Tensor]) -> Self:
         """
         Determine the type of the MPS
         """
