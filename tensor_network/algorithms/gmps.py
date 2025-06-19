@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader, TensorDataset
 EPS = 1e-14
 
 
-# prepare env vectors from left to right
+@torch.compile(dynamic=True)
 def calc_left_to_right_step(
     current_tensor: torch.Tensor,
     current_env_vector_left: torch.Tensor,
@@ -36,6 +36,7 @@ def calc_left_to_right_step(
     return next_env_vector_left / (current_norm_factor + EPS), current_norm_factor.squeeze(-1)
 
 
+@torch.compile(dynamic=True)
 def calc_right_to_left_step(
     current_tensor: torch.Tensor,
     current_env_vector_right: torch.Tensor,
@@ -54,6 +55,7 @@ def calc_right_to_left_step(
     return next_env_vector_right / (current_norm_factor + EPS), current_norm_factor.squeeze(-1)
 
 
+@torch.compile(dynamic=True)
 def calc_nll(norm_factors: torch.Tensor) -> torch.Tensor:
     """
     Calculate the negative log likelihood from the norm factors in a batch
@@ -122,18 +124,17 @@ def eval_nll(
     assert mps.center is not None
     dataset_size, feature_num, _ = samples.shape
     assert feature_num == mps.length
+    batch_size = dataset_size  # since we do the init NLL evaluation in one go
     # set default device to device
     prev_device = torch.get_default_device()
     torch.set_default_device(device)
     mps_local_tensors = mps.local_tensors
-    batch_size = dataset_size  # since we do the init NLL evaluation in one go
-    env_vectors_left: List[torch.Tensor | None] = [None] * mps.length
+    # init env vectors and norm factors
     left_virtual_dim = mps_local_tensors[0].shape[0]
-    env_vectors_left[0] = torch.ones(batch_size, left_virtual_dim)
-    env_vectors_right: List[torch.Tensor | None] = [None] * mps.length
+    env_vector_left = torch.ones(batch_size, left_virtual_dim)
     right_virtual_dim = mps_local_tensors[-1].shape[-1]
-    env_vectors_right[-1] = torch.ones(batch_size, right_virtual_dim)
-    norm_factors = torch.ones(batch_size, feature_num)
+    env_vector_right = torch.ones(batch_size, right_virtual_dim)
+    norm_factors = [None] * feature_num
 
     def samples_at(idx):
         return samples[:, idx, :]  # (batch, feature_dim)
@@ -141,31 +142,33 @@ def eval_nll(
     for idx in range(mps.center):
         next_env_vector_left, current_norm_factor = calc_left_to_right_step(
             mps_local_tensors[idx],
-            env_vectors_left[idx],
+            env_vector_left,
             samples_at(idx),
         )
         # set the norm factor for current position to be the norm of the next env vector, since the next env vector is to be normalized
-        norm_factors[:, idx] = current_norm_factor
-        env_vectors_left[idx + 1] = next_env_vector_left
+        norm_factors[idx] = current_norm_factor
+        env_vector_left = next_env_vector_left
 
     # prepare env vectors from right to left
     for idx in range(mps.length - 1, mps.center, -1):
         next_env_vector_right, current_norm_factor = calc_right_to_left_step(
             mps_local_tensors[idx],
-            env_vectors_right[idx],
+            env_vector_right,
             samples_at(idx),
         )
-        norm_factors[:, idx] = current_norm_factor
-        env_vectors_right[idx - 1] = next_env_vector_right
+        norm_factors[idx] = current_norm_factor
+        env_vector_right = next_env_vector_right
 
     # update the norm factor at the center
-    norm_factors[:, mps.center] = einsum(
+    norm_factors[mps.center] = einsum(
         mps_local_tensors[mps.center],
-        env_vectors_left[mps.center],
+        env_vector_left,
         samples_at(mps.center),
-        env_vectors_right[mps.center],
+        env_vector_right,
         "left physical right, batch left, batch physical, batch right -> batch",
     )
+
+    norm_factors = torch.stack(norm_factors, dim=1)  # (batch, feature_num)
 
     if return_avg:
         nll = calc_nll(norm_factors).mean()
