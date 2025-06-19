@@ -95,6 +95,17 @@ from random import randint
 
 
 def tensor_contract(*tensors, ein_expr: str, dims: List[Set[str]] | Set[str]) -> torch.Tensor:
+    """
+    Do tensor contraction with einsum expression.
+
+    Args:
+        tensors: List[torch.Tensor], the tensors to contract.
+        ein_expr: str, the original einsum expression.
+        dims: List[Set[str]] | Set[str], sets of dimensions that are aliased to each other, meaning they will be contracted together.
+
+    Returns:
+        torch.Tensor, the contracted tensor.
+    """
     assert len(tensors) >= 2, "At least two tensors are needed for contraction"
     if isinstance(dims, Set):
         dims = [dims]
