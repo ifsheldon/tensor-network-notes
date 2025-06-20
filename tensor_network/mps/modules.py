@@ -359,6 +359,7 @@ class MPS:
         Args:
             idx: int, the index of the qubit to calculate the reduced density matrix of.
             do_tracing: bool, whether to do tracing.
+            inplace_mutation: bool, whether to do in-place mutation. Speed is faster if True.
         """
         assert 0 <= idx < self.length, "idx must be in [0, length - 1]"
         if self.center is None:  # TODO: optimize this branch
