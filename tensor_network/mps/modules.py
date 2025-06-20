@@ -507,11 +507,11 @@ def project_one_qubit(self: MPS, qubit_idx: int, project_to_state: torch.Tensor 
 
 # %% ../../4-9.ipynb 9
 @patch
-def entanglement_entropy_onsite(
+def entanglement_entropy_onsite_(
     self: MPS, indices: List[int] | None = None, eps: float = 1e-10
 ) -> torch.Tensor:
     """
-    Calculate the onsite entanglement entropies for qubits at `indices`.
+    Calculate the onsite entanglement entropies for qubits at `indices`. With inplace mutation.
 
     Args:
         indices: The indices of the qubits to calculate the entanglement entropies. If `None`, calculate for all qubits.

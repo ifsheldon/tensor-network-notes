@@ -63,7 +63,7 @@ def OEE_variation_one_qubit_measurement(
 ) -> torch.Tensor:
     assert feature.ndim == 2, "features must be a 2D tensor"
     feature_num = feature.shape[0]
-    oees = mps.entanglement_entropy_onsite()
+    oees = mps.entanglement_entropy_onsite_()
     if oee_threshold is None:
         selected_pos = torch.arange(feature_num)
         select_all = True
@@ -85,11 +85,11 @@ def OEE_variation_one_qubit_measurement(
             projected_mps = mps.project_one_qubit(idx, feature[idx])
             projected_mps._center = max(0, idx - 1)
             if select_all:
-                new_oees = projected_mps.entanglement_entropy_onsite()
+                new_oees = projected_mps.entanglement_entropy_onsite_()
             else:
                 new_selected_pos = _remove_at(selected_pos, idx)
                 new_selected_pos[new_selected_pos > idx] -= 1
-                new_oees = projected_mps.entanglement_entropy_onsite(
+                new_oees = projected_mps.entanglement_entropy_onsite_(
                     indices=new_selected_pos.tolist()
                 )
             oee_changes.append(oee_sum - new_oees.sum())
