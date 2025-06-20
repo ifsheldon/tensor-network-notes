@@ -29,6 +29,10 @@ poe lab
 uv run poe lab
 ```
 
+## Trained MPS Checkpoints
+
+See [the repo](https://huggingface.co/mapleL/mnist_mps) on Huggingface.
+
 ## Contribution
 
 Contributions are very welcome. Please file an issue or PR if you have any questions or suggestions.
