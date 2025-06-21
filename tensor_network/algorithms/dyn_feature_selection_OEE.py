@@ -7,8 +7,7 @@ __all__ = ['dyn_OEE_analyze', 'OEE_variation_one_qubit_measurement']
 
 # %% ../../4-10.ipynb 2
 import torch
-from ..feature_mapping import cossin_feature_map
-from ..utils.tensors import outer_product
+from ..feature_mapping import cossin_feature_map, feature_map_to_qubit_state
 import numpy as np
 
 # %% ../../4-10.ipynb 5
@@ -23,9 +22,7 @@ def dyn_OEE_analyze(samples: torch.Tensor, nth_img: int):
     assert samples.shape[1] >= 3
     num_samples, num_features = samples.shape
     features = cossin_feature_map(samples, theta=0.5)  # (num_samples, num_features, 2)
-    tensor_states = torch.stack(
-        [outer_product(features[i]) for i in range(num_samples)]
-    )  # (num_samples, [2] * num_features)
+    tensor_states = feature_map_to_qubit_state(features)  # (num_samples, [2] * num_features)
     tensor_state = tensor_states.sum(dim=0) / np.sqrt(num_samples)
 
     oees = calc_onsite_entanglement_entropy(tensor_state)
