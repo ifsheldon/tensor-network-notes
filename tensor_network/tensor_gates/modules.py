@@ -155,6 +155,7 @@ class SimpleGate(QuantumGate):
             control_qubit=control_qubit,
         )
         assert isinstance(gate, torch.Tensor), "gate must be a torch.Tensor"
+        check_quantum_gate(gate)
         self.gate = nn.Parameter(
             gate, requires_grad=gate.requires_grad if requires_grad is None else requires_grad
         )
