@@ -536,7 +536,7 @@ def entanglement_entropy_onsite_(
     entropies = -(probs * torch.log(probs)).sum(dim=1)  # (length,)
     return entropies
 
-# %% ../../5-2.ipynb 11
+# %% ../../5-2.ipynb 13
 from einops import rearrange
 
 
