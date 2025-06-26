@@ -78,6 +78,9 @@ def direction_to_next_center(
 def calculate_mps_local_energies(
     mps: MPS, hamiltonians: List[torch.Tensor], positions: List[List[int]] | torch.Tensor
 ) -> torch.Tensor:
+    if len(hamiltonians) == 1:
+        hamiltonians = hamiltonians * len(positions)
+
     assert len(hamiltonians) == len(positions), (
         f"len(hamiltonians): {len(hamiltonians)}, len(positions): {len(positions)}"
     )
@@ -93,20 +96,6 @@ def calculate_mps_local_energies(
 from ..mps.functional import orthogonalize_arange
 from typing import Tuple
 from tqdm.auto import tqdm
-
-
-def _prepare_gates(
-    hamiltonians: List[torch.Tensor], tau: float, interaction_num: int
-) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-    gates = [
-        view_gate_matrix_as_tensor(torch.matrix_exp(-tau * view_gate_tensor_as_matrix(h)))
-        for h in hamiltonians
-    ]
-    if len(gates) == 1:
-        gates = gates * interaction_num
-        hamiltonians = hamiltonians * interaction_num
-
-    return gates, hamiltonians
 
 
 def tebd(
@@ -162,7 +151,10 @@ def tebd(
     )
     mps.normalize_()
 
-    gates, hamiltonians = _prepare_gates(hamiltonians, tau, interaction_num)
+    gates = [
+        view_gate_matrix_as_tensor(torch.matrix_exp(-tau * view_gate_tensor_as_matrix(h)))
+        for h in hamiltonians
+    ]
 
     I = torch.eye(mps.physical_dim, dtype=torch.int32, device=device)
     gr = einsum(I, I, "b0 b1, d0 d1 -> b0 b1 d0 d1")
@@ -181,7 +173,7 @@ def tebd(
             else:
                 mps.center_orthogonalization_(p_right, mode="qr")
 
-            gate = gates[p]
+            gate = gates[p] if len(gates) > 1 else gates[0]
             gl = rearrange(gate, "a b c d -> a (b d) c")  # (a, g, c)
             mps_local_tensors = evolve_gate_2body(mps.local_tensors, gl, gr, p_left, p_right)
 
@@ -251,7 +243,12 @@ def tebd(
                     print("  E converged. Break iteration.")
                     break
 
-                gates, hamiltonians = _prepare_gates(hamiltonians, tau, interaction_num)
+                gates = [
+                    view_gate_matrix_as_tensor(
+                        torch.matrix_exp(-tau * view_gate_tensor_as_matrix(h))
+                    )
+                    for h in hamiltonians
+                ]
                 print(f"  Reduce tau to {tau}")
 
     return mps, local_energies
