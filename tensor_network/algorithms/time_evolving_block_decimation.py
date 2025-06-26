@@ -96,6 +96,8 @@ def calculate_mps_local_energies(
 from ..mps.functional import orthogonalize_arange
 from typing import Tuple
 from tqdm.auto import tqdm
+import tensor_network.setup_ref_code_import as _
+from Library.MatrixProductState import MPS_tebd
 
 
 def tebd(
@@ -233,6 +235,15 @@ def tebd(
             t == iterations - 1
         ):
             local_energies_new = calculate_mps_local_energies(mps, hamiltonians, positions)
+            # FIXME: local_energies_new seems to be wrong, lower than avg_energy_ref
+            ref_mps = MPS_tebd(
+                tensors=mps.local_tensors, para={"dtype": mps.dtype, "device": mps.device}
+            )
+            ref_mps.center = mps.center
+            ps = [p.tolist() for p in positions]
+            hs = hamiltonians if len(hamiltonians) > 1 else hamiltonians * len(ps)
+            local_energies_ref = ref_mps.calculate_local_energies(hs, ps)
+            assert torch.allclose(local_energies_new, local_energies_ref)
             avg_diff_local_energies = (local_energies_new - local_energies).abs().mean()
             local_energies = local_energies_new
             if avg_diff_local_energies < e0_eps or t == iterations - 1:
