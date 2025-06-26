@@ -535,3 +535,43 @@ def entanglement_entropy_onsite_(
     probs[probs < eps] = eps
     entropies = -(probs * torch.log(probs)).sum(dim=1)  # (length,)
     return entropies
+
+# %% ../../5-2.ipynb 11
+from einops import rearrange
+
+
+@patch
+def two_body_reduced_density_matrix_(
+    self: MPS, qubit_idx0: int, qubit_idx1: int, return_matrix: bool = False
+) -> torch.Tensor:
+    assert 0 <= qubit_idx0 < qubit_idx1
+    self.center_orthogonalization_(qubit_idx0, mode="qr", normalize=True)
+
+    tensor_left = self._mps[qubit_idx0]
+    product = einsum(
+        tensor_left.conj(),
+        tensor_left,
+        "left physical_conj right_conj, left physical right -> physical_conj physical right_conj right",
+    )
+
+    for idx in range(qubit_idx0 + 1, qubit_idx1):
+        tensor_i = self._mps[idx]
+        product = einsum(
+            product,
+            tensor_i.conj(),
+            tensor_i,
+            "i0_physical_conj i0_physical left_conj left, left_conj physical right_conj, left physical right -> i0_physical_conj i0_physical right_conj right",
+        )
+
+    tensor_right = self._mps[qubit_idx1]
+    rdm = einsum(
+        product,
+        tensor_right.conj(),
+        tensor_right,
+        "i0_physical_conj i0_physical left_conj left, left_conj i1_physical_conj right, left i1_physical right -> i0_physical i1_physical i0_physical_conj i1_physical_conj ",
+    )
+
+    if return_matrix:
+        return rearrange(rdm, "a b c d -> (a b) (c d)")
+    else:
+        return rdm
