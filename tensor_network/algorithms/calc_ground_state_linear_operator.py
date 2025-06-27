@@ -14,7 +14,10 @@ from copy import deepcopy
 
 # %% ../../2-8-calc-ground-state.ipynb 2
 def calc_ground_state(
-    hamiltonian: torch.Tensor, interact_positions: List[List[int]] | torch.Tensor, num_qubits: int
+    hamiltonian: torch.Tensor | List[torch.Tensor],
+    interact_positions: List[List[int]] | torch.Tensor,
+    num_qubits: int,
+    smallest_k: int = 1,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate the ground state of a quantum system using the linear operator method.
@@ -23,17 +26,35 @@ def calc_ground_state(
         hamiltonian: The Hamiltonian of the quantum system.
         interact_positions: The positions of the interactions.
         num_qubits: The number of qubits in the system.
+        smallest_k: The number of smallest eigenvalues to calculate.
 
     Returns:
         ground_state: The ground state of the quantum system.
         ground_energy: The energy of the ground state.
     """
+    assert smallest_k >= 1
     assert num_qubits >= 2
-    assert all(x == 2 for x in hamiltonian.shape), (
-        "hamiltonian must be a tensor with all dimensions of size 2"
-    )
-    gate_apply_qubit_num = check_quantum_gate(hamiltonian)
-    assert gate_apply_qubit_num <= num_qubits
+    if isinstance(hamiltonian, torch.Tensor):
+        assert all(x == 2 for x in hamiltonian.shape), (
+            "hamiltonian must be a tensor with all dimensions of size 2"
+        )
+        gate_apply_qubit_num = check_quantum_gate(hamiltonian)
+        assert gate_apply_qubit_num <= num_qubits
+        hamiltonian = [hamiltonian]
+    else:
+        assert len(hamiltonian) == len(interact_positions)
+        gate_apply_qubit_num = check_quantum_gate(hamiltonian[0])
+        assert all(x == 2 for x in hamiltonian[0].shape), (
+            "hamiltonian must be a tensor with all dimensions of size 2"
+        )
+        for i in range(1, len(hamiltonian)):
+            assert gate_apply_qubit_num == check_quantum_gate(hamiltonian[i]), (
+                "all hamiltonian must have the same number of qubits for now"
+            )
+            assert all(x == 2 for x in hamiltonian[i].shape), (
+                "all hamiltonian must be a tensor with all dimensions of size 2"
+            )
+
     assert isinstance(interact_positions, (List, torch.Tensor))
     if isinstance(interact_positions, List):
         interact_positions = torch.tensor(interact_positions)
@@ -63,17 +84,22 @@ def calc_ground_state(
             qubit_output_dims=" ".join(qubit_output_dims),
         )
         ein_exps.append(ein_exp)
-    hamiltonian_np = hamiltonian.numpy()
+
+    hamiltonian_np = torch.stack(hamiltonian).numpy()
 
     def matvec(state: np.ndarray):
         state = state.reshape(*([2] * num_qubits))
         new_state = 0
-        for ein_exp in ein_exps:
-            new_state += einsum(state, hamiltonian_np, ein_exp)
+        if hamiltonian_np.shape[0] == 1:
+            for ein_exp in ein_exps:
+                new_state += einsum(state, hamiltonian_np[0], ein_exp)
+        else:
+            for ein_exp, h in zip(ein_exps, hamiltonian_np):
+                new_state += einsum(state, h, ein_exp)
         return new_state.flatten()
 
     linear_fn = LinearOperator(shape=(2**num_qubits, 2**num_qubits), matvec=matvec)
-    smallest_eigvalue, eigenvec = eigsh(linear_fn, k=1, which="SA")
+    smallest_eigvalue, eigenvec = eigsh(linear_fn, k=smallest_k, which="SA")
     ground_energy = torch.from_numpy(smallest_eigvalue)
     ground_state = torch.from_numpy(eigenvec).squeeze()
     return ground_state, ground_energy
