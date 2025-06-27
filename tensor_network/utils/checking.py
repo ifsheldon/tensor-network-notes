@@ -42,7 +42,9 @@ def check_state_tensor(tensor: torch.Tensor):
     assert tensor.ndim > 0, "quantum_state must be a tensor with at least one dimension"
 
 
-def check_quantum_gate(tensor: torch.Tensor, num_qubits: int | None = None) -> int:
+def check_quantum_gate(
+    tensor: torch.Tensor, num_qubits: int | None = None, assert_tensor_form: bool = False
+) -> int:
     """
     Check if the tensor is a valid quantum gate tensor.
     Args:
@@ -66,6 +68,7 @@ def check_quantum_gate(tensor: torch.Tensor, num_qubits: int | None = None) -> i
         assert tensor.shape[0] == tensor.shape[1] == 2**num_qubits, (
             f"gate must be a square matrix with dimensions 2^num_qubits, got {tensor.shape}"
         )
+        assert not (assert_tensor_form and num_qubits > 1), "Quantum gate should be in tensor form"
     else:
         assert all(d == 2 for d in tensor.shape), "gate tensor must have all dimensions of size 2"
         num_qubits = tensor.ndim // 2 if num_qubits is None else num_qubits
