@@ -19,6 +19,7 @@ mlx = ["mlx>=0.26.0"]
 torch = ["torch>=2.7.0", "torchmetrics>=1.7.1", "torchvision>=0.22.0"]
 
 dev = [
+    "dowhen>=0.1.0",
     "nbdev>=2.3.37",
     "poethepoet>=0.33.1",
     "pre-commit>=4.2.0",

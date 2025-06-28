@@ -358,6 +358,15 @@ wheels = [
 ]
 
 [[package]]
+name = "dowhen"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/38/19/61042b0a86170158940dd9aba60ce485922a8101d762b6b50b7cd65e91d0/dowhen-0.1.0.tar.gz", hash = "sha256:418804e52e715fd61f362c285eb0e8023819569fae85b592025d707246a1aea9", size = 21441, upload-time = "2025-06-26T23:13:31.089Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/5a/faf4ca6fe29f3cfcc7c730245e47112d236e8f3bd3b23666975c3ddc287f/dowhen-0.1.0-py3-none-any.whl", hash = "sha256:723a39b838ac15a2d6d3a40bfcc21b672a6f760354a00a373c53c6b23de4cfb5", size = 19092, upload-time = "2025-06-26T23:13:29.73Z" },
+]
+
+[[package]]
 name = "einops"
 version = "0.8.2"
 source = { git = "https://github.com/ifsheldon/einops?branch=mlx-backend#28909fbaefac7b5da912eb11dd3ad73c4446a8a7" }
@@ -2013,6 +2022,7 @@ mlx = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "dowhen" },
     { name = "nbdev" },
     { name = "poethepoet" },
     { name = "pre-commit" },
@@ -2053,6 +2063,7 @@ provides-extras = ["mlx"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "dowhen", specifier = ">=0.1.0" },
     { name = "nbdev", specifier = ">=2.3.37" },
     { name = "poethepoet", specifier = ">=0.33.1" },
     { name = "pre-commit", specifier = ">=4.2.0" },
