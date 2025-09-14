@@ -167,6 +167,186 @@ pub fn project_multi_qubits_vec(
     local_tensors
 }
 
+pub fn orthogonalize_left2right_step(
+    mps_tensors: &[Tensor],
+    local_tensor_idx: usize,
+    mode: &str,
+    truncate_dim: Option<i64>,
+    normalize: bool,
+    check_nan: bool,
+) -> (Tensor, Tensor) {
+    assert!(mps_tensors.len() > 1);
+    assert!(local_tensor_idx < mps_tensors.len() - 1);
+    let mode = mode.to_lowercase();
+    assert!(mode == "svd" || mode == "qr");
+    let local = &mps_tensors[local_tensor_idx];
+    let shape = local.size();
+    let right_dim = shape[2];
+    let need_truncate = truncate_dim.is_some();
+    if need_truncate {
+        assert!(mode == "svd");
+    }
+    let view = local.view([-1, right_dim]);
+    let (new_local, r) = if mode == "svd" {
+        let (u, s, v) = view.svd(false, true);
+        if let Some(td) = truncate_dim {
+            let td = td.min(right_dim);
+            let u = u.i((.., 0..td));
+            let s = s.i(0..td).unsqueeze(1);
+            let v = v.i(0..td);
+            (u, s * v)
+        } else {
+            (u, s.unsqueeze(1) * v)
+        }
+    } else {
+        let (u, r) = view.qr(false);
+        (u, r)
+    };
+    let r = if normalize { &r / r.norm() } else { r };
+    let new_local_tensor = new_local.view([shape[0], shape[1], -1]);
+    let right = &mps_tensors[local_tensor_idx + 1];
+    let new_right = Tensor::einsum("ab,bcd->acd", &[r, right.shallow_clone()], None::<Vec<i64>>);
+    if check_nan {
+        assert!(new_local_tensor.isnan().any().int64_value(&[]) == 0);
+        assert!(new_right.isnan().any().int64_value(&[]) == 0);
+    }
+    (new_local_tensor, new_right)
+}
+
+pub fn orthogonalize_right2left_step(
+    mps_tensors: &[Tensor],
+    local_tensor_idx: usize,
+    mode: &str,
+    truncate_dim: Option<i64>,
+    normalize: bool,
+    check_nan: bool,
+) -> (Tensor, Tensor) {
+    assert!(mps_tensors.len() > 1);
+    assert!(local_tensor_idx > 0 && local_tensor_idx < mps_tensors.len());
+    let mode = mode.to_lowercase();
+    assert!(mode == "svd" || mode == "qr");
+    let local = &mps_tensors[local_tensor_idx];
+    let shape = local.size();
+    let left_dim = shape[0];
+    let view = local.view([left_dim, -1]).transpose(0, 1);
+    let need_truncate = truncate_dim.is_some();
+    if need_truncate {
+        assert!(mode == "svd");
+    }
+    let (q_t, r) = if mode == "svd" {
+        let (u, s, v) = view.svd(false, true);
+        let (u, s, v, _rank) = if let Some(td) = truncate_dim {
+            let rank = s.size()[0].min(td);
+            (u.i((.., 0..rank)), s.i(0..rank), v.i(0..rank), rank)
+        } else {
+            let r = s.size()[0];
+            (u, s, v, r)
+        };
+        (u.transpose(0, 1), s.unsqueeze(1) * v)
+    } else {
+        let (q, r) = view.qr(false);
+        (q.transpose(0, 1), r)
+    };
+    let r = if normalize { &r / r.norm() } else { r };
+    let new_local = q_t.view([-1, shape[1], shape[2]]);
+    let left = &mps_tensors[local_tensor_idx - 1];
+    let new_left = Tensor::einsum("abc,dc->abd", &[left.shallow_clone(), r], None::<Vec<i64>>);
+    if check_nan {
+        assert!(new_local.isnan().any().int64_value(&[]) == 0);
+        assert!(new_left.isnan().any().int64_value(&[]) == 0);
+    }
+    (new_left, new_local)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn orthogonalize_arange(
+    mps_tensors: &[Tensor],
+    start_idx: usize,
+    end_idx: usize,
+    mode: &str,
+    truncate_dim: Option<i64>,
+    normalize: bool,
+    return_changed: bool,
+    check_nan: bool,
+) -> (Vec<Tensor>, Option<Vec<usize>>) {
+    let n = mps_tensors.len();
+    assert!(n > 1);
+    assert!(start_idx < n && end_idx < n);
+    let mut mps: Vec<Tensor> = mps_tensors.iter().map(|t| t.shallow_clone()).collect();
+    let mut changed = std::collections::BTreeSet::new();
+    if start_idx < end_idx {
+        for idx in start_idx..end_idx {
+            let (l, r) =
+                orthogonalize_left2right_step(&mps, idx, mode, truncate_dim, normalize, check_nan);
+            mps[idx] = l;
+            mps[idx + 1] = r;
+            changed.insert(idx);
+            changed.insert(idx + 1);
+        }
+    } else if start_idx > end_idx {
+        for idx in (end_idx + 1..=start_idx).rev() {
+            let (l, r) =
+                orthogonalize_right2left_step(&mps, idx, mode, truncate_dim, normalize, check_nan);
+            mps[idx - 1] = l;
+            mps[idx] = r;
+            changed.insert(idx - 1);
+            changed.insert(idx);
+        }
+    }
+    if return_changed {
+        (mps, Some(changed.into_iter().collect()))
+    } else {
+        (mps, None)
+    }
+}
+
+pub fn tt_decomposition(
+    state: &Tensor,
+    max_rank: Option<i64>,
+    use_svd: bool,
+) -> (Vec<Tensor>, Vec<i64>) {
+    let clip = max_rank.is_some();
+    let use_svd = if clip { true } else { use_svd };
+    let shape = state.size();
+    let n_qubits = state.dim() as i64;
+    let physical_dim = shape[0];
+    let mut left_dim = 1_i64;
+    let mut locals: Vec<Tensor> = Vec::new();
+    let mut remained = state.shallow_clone();
+    let mut clipped: Vec<i64> = Vec::new();
+    for _ in 0..(n_qubits - 1) {
+        let mid_dim = physical_dim;
+        if use_svd {
+            let m = remained.view([left_dim * mid_dim, -1]);
+            let (q, s, v) = m.svd(false, true);
+            let (q, s, v, rank) = if let Some(maxr) = max_rank {
+                let rank = s.size()[0].min(maxr);
+                (q.i((.., 0..rank)), s.i(0..rank), v.i(0..rank), rank)
+            } else {
+                let r = s.size()[0];
+                (q, s, v, r)
+            };
+            let s = s.unsqueeze(1);
+            remained = s * v;
+            let new_left = rank;
+            locals.push(q.view([left_dim, mid_dim, new_left]));
+            left_dim = new_left;
+            if clip {
+                clipped.push(rank);
+            }
+        } else {
+            let m = remained.view([left_dim * mid_dim, -1]);
+            let (q, r) = m.qr(false);
+            remained = r;
+            let new_left = remained.size()[0];
+            locals.push(q.view([left_dim, mid_dim, new_left]));
+            left_dim = new_left;
+        }
+    }
+    locals.push(remained.view([left_dim, physical_dim, 1]));
+    (locals, clipped)
+}
+
 pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tensor {
     assert!(!mps.is_empty());
     let conj: Vec<Tensor> = mps.iter().map(|t| t.conj()).collect();
