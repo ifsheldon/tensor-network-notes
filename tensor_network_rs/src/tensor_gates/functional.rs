@@ -119,9 +119,10 @@ pub fn heisenberg(
     double_precision: bool,
     return_matrix: bool,
 ) -> Tensor {
-    let px = pauli_operator("X", double_precision, true);
+    // Match Python: X and Z can remain real; Y requires complex
+    let px = pauli_operator("X", double_precision, false);
     let py = pauli_operator("Y", double_precision, true);
-    let pz = pauli_operator("Z", double_precision, true);
+    let pz = pauli_operator("Z", double_precision, false);
     // h = jx X⊗X + jy Y⊗Y + jz Z⊗Z
     let xx = Tensor::einsum(
         "ab, ij -> aibj",
@@ -520,7 +521,8 @@ mod tests {
     #[test]
     fn test_heisenberg_real_output() {
         let h = heisenberg(1.0, 1.0, 1.0, true, true);
-        // Should be real-valued matrix (float/double)
-        assert!(matches!(h.kind(), Kind::Float | Kind::Double));
+        // Should be real-valued entries (imag part zero)
+        let imag_sum = h.imag().abs().sum(h.kind()).double_value(&[]);
+        assert!(imag_sum < 1e-12);
     }
 }
