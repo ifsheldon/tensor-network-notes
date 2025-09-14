@@ -82,6 +82,91 @@ pub fn calc_global_tensor_by_contract(mps: &[Tensor]) -> Tensor {
     named_einsum(&spec, &owned).squeeze()
 }
 
+pub fn calc_global_tensor_by_tensordot(mps: &[Tensor]) -> Tensor {
+    assert!(!mps.is_empty());
+    let mut state = mps[0].shallow_clone();
+    for next in mps.iter().skip(1) {
+        let next = next.shallow_clone();
+        state = Tensor::einsum("... r, r p v -> ... p v", &[state, next], None::<Vec<i64>>);
+    }
+    state.squeeze()
+}
+
+pub fn project_multi_qubits_vec(
+    mps_local_tensors: &[Tensor],
+    qubit_indices: &[i64],
+    project_to_states: &Tensor,
+) -> Vec<Tensor> {
+    let mut local_tensors: Vec<Tensor> = mps_local_tensors
+        .iter()
+        .map(|t| t.shallow_clone())
+        .collect();
+    if qubit_indices.is_empty() {
+        return local_tensors;
+    }
+    assert_eq!(project_to_states.size()[0], qubit_indices.len() as i64);
+    for (i, &qidx) in qubit_indices.iter().enumerate() {
+        let lt = &local_tensors[qidx as usize];
+        let ps = project_to_states.i(i as i64);
+        assert_eq!(lt.size()[1], ps.size()[0]);
+        let new_lt = Tensor::einsum(
+            "l p r, p -> l r",
+            &[lt.shallow_clone(), ps],
+            None::<Vec<i64>>,
+        );
+        local_tensors[qidx as usize] = new_lt;
+    }
+    let mut idxs: Vec<i64> = qubit_indices.to_vec();
+    idxs.sort_by(|a, b| b.cmp(a));
+    for &qidx in idxs.iter().take(idxs.len().saturating_sub(1)) {
+        assert!(qidx > 0);
+        let left = (qidx - 1) as usize;
+        let right = qidx as usize;
+        let merged = Tensor::einsum(
+            "a b, b c -> a c",
+            &[
+                local_tensors[left].shallow_clone(),
+                local_tensors[right].shallow_clone(),
+            ],
+            None::<Vec<i64>>,
+        );
+        local_tensors[left] = merged;
+        let _ = local_tensors.remove(right);
+    }
+    if local_tensors.len() > 1 {
+        let qidx = *idxs.last().unwrap() as usize;
+        if qidx == 0 {
+            let merged = Tensor::einsum(
+                "a b, b c -> a c",
+                &[
+                    local_tensors[qidx].shallow_clone(),
+                    local_tensors[1].shallow_clone(),
+                ],
+                None::<Vec<i64>>,
+            );
+            local_tensors[1] = merged;
+        } else {
+            let left = qidx - 1;
+            let merged = Tensor::einsum(
+                "a b, b c -> a c",
+                &[
+                    local_tensors[left].shallow_clone(),
+                    local_tensors[qidx].shallow_clone(),
+                ],
+                None::<Vec<i64>>,
+            );
+            local_tensors[left] = merged;
+        }
+        let _ = local_tensors.remove(qidx);
+    }
+    for lt in &mut local_tensors {
+        if lt.dim() == 2 {
+            *lt = lt.unsqueeze(1);
+        }
+    }
+    local_tensors
+}
+
 pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tensor {
     assert!(!mps.is_empty());
     let conj: Vec<Tensor> = mps.iter().map(|t| t.conj()).collect();
