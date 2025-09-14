@@ -93,4 +93,5 @@ mod tests {
 }
 
 pub mod checking;
+pub mod einsum;
 pub mod mapping;
