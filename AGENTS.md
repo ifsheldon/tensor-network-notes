@@ -1,9 +1,13 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Notebooks: numbered lessons at repo root (e.g., `1-6.ipynb`, `4-4-mlx.ipynb`). Source of truth for code.
+- Notebooks: numbered lessons at repo root (e.g., `1-6.ipynb`, `4-4-mlx.ipynb`). Source of truth for Python code.
 - Python package: `tensor_network/` (algorithms, mps, networks, utils, gates, `mlx/`). Generated artifacts like `_modidx.py` are nbdev outputs — do not edit by hand.
-- Rust crate: `tensor_network_rs/` for experiments; unit tests live in `src/lib.rs`.
+- Rust crate: `tensor_network_rs/` (tch-rs port). Key modules under `src/`:
+  - `constants.rs`, `utils/{mod,einsum,checking,mapping}.rs`
+  - `tensor_gates/`, `quantum_state/`, `mps/{functional,modules}.rs`
+  - `algorithms/{gmps,imaginary_time_evolution,time_evolving_block_decimation,tensor_decomposition,quantum_kernels,lazy_classifier}.rs`
+  - Status/TODOs tracked in `tensor_network_rs/port_plan.md`.
 - Assets: `images/`. Config: `pyproject.toml`, `.pre-commit-config.yaml`, `settings.ini`.
 
 ## Build, Test, and Development Commands
@@ -36,9 +40,16 @@
 - Scope: port Python `tensor_network/` to Rust in `tensor_network_rs/`. Ignore MLX notebooks and `tensor_network/mlx`.
 - Order: follow notebooks (e.g., `0-utils-*` → core ops → MPS → algorithms). Implement shared utils first if needed.
 - Commands per module: `cargo check` → `cargo clippy --all-targets -- -D warnings` → `cargo fmt`.
-- Gradients: create a `VarStore` when parameters require grads (see `tensor_network_rs/src/lib.rs`).
-- Numerics: mirror PyTorch defaults. Define `ATOL` `= 1e-8` and `RTOL` `= 1e-5` in `src/constants.rs` and use for `allclose`. Add a comment noting they match PyTorch.
-- Tests: derive from notebooks; place in `tensor_network_rs/tests/` or `src/*` with `#[test]`. Some tests are flaky; that’s acceptable. Prefer fixed seeds and small tensors.
+- Numerics: mirror PyTorch defaults. Define and use `RTOL_DEFAULT=1e-5`, `ATOL_DEFAULT=1e-8` from `src/constants.rs`.
+- Tests: derive from notebooks; place in `tensor_network_rs/tests/` or inline in `src/*` with `#[test]`. Prefer fixed seeds and small tensors.
+- Einsum: prefer `utils::einsum::named_einsum` for readability when equations mirror the math; otherwise use `Tensor::einsum` or reshape+matmul.
+- Complex: use `Kind::Complex{Float,Double}` when needed (e.g., Pauli Y, rotation gates). Helpers in `utils::mapping` and `utils::complex_from_slices` ease dtype conversions.
+- Gradients: use `tch` autograd where viable; for GMPS-style training loops we currently compute explicit gradients as in the Python version.
+
+Known TODOs captured in `tensor_network_rs/port_plan.md`:
+- Selective-feature GMPS NLL (partial subset path).
+- Vectorized batched gate application.
+- Save/load for Rust models (e.g., safetensors/serde).
 
 ## Agent Notes
 - Follow the notebook‑first workflow and this file across the repo. When updating Python code, edit notebooks → `poe sync` → lint. Avoid refactors that change lesson numbering or file naming without discussion.

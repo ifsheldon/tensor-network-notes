@@ -13,11 +13,13 @@ pub mod mps {
 pub mod algorithms {
     pub mod gmps;
     pub mod imaginary_time_evolution;
+    pub mod lazy_classifier;
     pub mod quantum_kernels;
     pub mod tensor_decomposition;
     pub mod time_evolving_block_decimation;
 }
 pub mod utils;
+pub mod feature_mapping;
 
 #[cfg(test)]
 mod tests {
@@ -43,4 +45,22 @@ mod tests {
     }
 
     // Note: tch's global RNG and test parallelism can interact; omit strict reproducibility test.
+    #[test]
+    fn test_gmps_selected_features_degenerate_to_full() {
+        use crate::mps::modules::{MPS, MPSType};
+        use tch::{Device, Kind, Tensor};
+        let dev = Device::Cpu;
+        let k = Kind::Float;
+        let length = 3;
+        let phys = 2;
+        let virt = 2;
+        let m = MPS::random(length, phys, virt, MPSType::Open, k, dev, false);
+        let samples = Tensor::rand([5, length, phys], (k, dev));
+        let full = crate::algorithms::gmps::eval_nll(&samples, &m, false);
+        let idx: Vec<i64> = (0..length as i64).collect();
+        let sub = crate::algorithms::gmps::eval_nll_selected_features(&samples, &m, &idx, false);
+        let diff = (full - sub).abs().max();
+        let d = diff.double_value(&[]);
+        assert!(d < 1e-6, "subset(all) should equal full, got {}", d);
+    }
 }

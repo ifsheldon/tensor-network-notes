@@ -132,7 +132,7 @@ pub fn heisenberg(
         "ab, ij -> aibj",
         &[py.shallow_clone(), py],
         None::<Vec<i64>>,
-    );
+    ).real(); // ensure real-valued contribution for real couplings
     let zz = Tensor::einsum(
         "ab, ij -> aibj",
         &[pz.shallow_clone(), pz],
@@ -350,8 +350,74 @@ pub fn apply_gate_batched_with_vmap(
     target_qubit: Vec<i64>,
     control_qubit: Option<Vec<i64>>,
 ) -> Tensor {
-    // TODO: use a single einsum/batched matmul once API is stabilized or added.
-    apply_gate_batched(quantum_states, gate, target_qubit, control_qubit)
+    super::super::utils::checking::check_state_tensor(&quantum_states.i(0)).expect("invalid state batch");
+    let mut control_qubit = control_qubit.unwrap_or_default();
+    let mut target_qubit = target_qubit;
+    let num_qubits = quantum_states.dim() as i64 - 1;
+    assert!(num_qubits > 0);
+    let num_target = target_qubit.len() as i64;
+    let num_control = control_qubit.len() as i64;
+    assert!(num_qubits >= num_target + num_control);
+    check_quantum_gate(gate, Some(num_target), false).expect("invalid gate");
+
+    target_qubit.sort_unstable();
+    control_qubit.sort_unstable();
+    let mut other: Vec<i64> = (0..num_qubits).collect();
+    for &q in &target_qubit { other.retain(|&x| x != q); }
+    for &q in &control_qubit { other.retain(|&x| x != q); }
+
+    // Move batch to last dim for easier contraction
+    let s = quantum_states.movedim(0, -1); // [2,...,2,B]
+    // Build permutation: [targets, others, controls, B]
+    let mut perm: Vec<i64> = target_qubit.clone();
+    perm.extend(&other);
+    perm.extend(&control_qubit);
+    perm.push(num_qubits); // original batch index at end
+    let s_perm = s.permute(&perm);
+    let shape = s_perm.size();
+    let d_t = 1_i64 << num_target;
+    let d_o = 1_i64 << (other.len() as i64);
+    let d_c = 1_i64 << num_control;
+    let b = shape.last().copied().unwrap();
+
+    // Ensure gate is tensor form [g... , t...]
+    let gate_t = if gate.dim() == 2 {
+        let dims = vec![2_i64; (2 * num_target) as usize];
+        gate.view(&dims[..])
+    } else { gate.shallow_clone() };
+
+    // Flatten state into [2^t, 2^o, 2^c, B]
+    let s_flat = s_perm.view([d_t, d_o, d_c, b]);
+    // unaffected part (controls != all ones): [:, :, 0..d_c-1, :]
+    let unaffected = if d_c > 1 { s_flat.i((.., .., 0..(d_c-1), ..)) } else { Tensor::zeros([d_t, d_o, 0, b], (s.kind(), s.device())) };
+    // slice for last control state
+    let last = s_flat.i((.., .., d_c - 1, ..)); // [2^t, 2^o, B]
+    // Use named_einsum to contract gate on target dims, preserving [o, B]
+    let g_names: Vec<String> = (0..num_target).map(|i| format!("g{}", i)).collect();
+    let t_names: Vec<String> = (0..num_target).map(|i| format!("t{}", i)).collect();
+    let o_names: Vec<String> = (0..(other.len() as i64)).map(|i| format!("o{}", i)).collect();
+    let spec = format!(
+        "{} {}, {} {} B -> {} {} B",
+        g_names.join(" "),
+        t_names.join(" "),
+        t_names.join(" "),
+        o_names.join(" "),
+        g_names.join(" "),
+        o_names.join(" "),
+    );
+    let last_new = crate::utils::einsum::named_einsum(&spec, &[gate_t, last]); // [2^t, 2^o, B]
+    let last_new_exp = last_new.unsqueeze(2); // [2^t, 2^o, 1, B]
+    let merged = if d_c > 1 { Tensor::cat(&[unaffected, last_new_exp], 2) } else { last_new_exp };
+    // Reshape back to original permuted shape and invert permutation
+    let out_perm = merged.view([d_t, d_o, d_c, b]);
+    let mut out_shape = vec![2_i64; (num_target + (other.len() as i64) + num_control) as usize];
+    out_shape.push(b);
+    let out_tensor = out_perm.view(&out_shape[..]).view(&shape[..]);
+    let mut inv = vec![0_i64; perm.len()];
+    for (i, &p) in perm.iter().enumerate() { inv[p as usize] = i as i64; }
+    let out = out_tensor.permute(&inv);
+    // Move batch back to dim 0
+    out.movedim(-1, 0)
 }
 
 /// Random unitary via Gram-Schmidt orthogonalization (fallback without linalg::qr bindings).
@@ -381,6 +447,17 @@ pub fn rand_gate_tensor(num_qubits: i64, matrix_form: bool, kind: Option<Kind>) 
         let dims = vec![2_i64; (num_qubits * 2) as usize];
         u.view(&dims[..])
     }
+}
+
+/// Convenience wrapper mirroring Python `rotate(params_vec)` API.
+pub fn rotate(params_vec: [f64; 4], double_precision: bool) -> Tensor {
+    rotate_from_scalars(
+        params_vec[0],
+        params_vec[1],
+        params_vec[2],
+        params_vec[3],
+        double_precision,
+    )
 }
 
 #[cfg(test)]
@@ -438,5 +515,12 @@ mod tests {
         assert_eq!(g.size(), vec![2, 2]);
         let s = g.abs().sum(g.kind()).double_value(&[]);
         assert!(s.is_finite());
+    }
+
+    #[test]
+    fn test_heisenberg_real_output() {
+        let h = heisenberg(1.0, 1.0, 1.0, true, true);
+        // Should be real-valued matrix (float/double)
+        assert!(matches!(h.kind(), Kind::Float | Kind::Double));
     }
 }

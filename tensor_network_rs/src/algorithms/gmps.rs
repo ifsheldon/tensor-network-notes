@@ -1,5 +1,5 @@
 use crate::mps::modules::MPS;
-use tch::{IndexOp, Tensor};
+use tch::{IndexOp, Kind, Tensor};
 
 const EPS: f64 = 1e-14;
 
@@ -120,5 +120,391 @@ pub fn eval_nll(samples: &Tensor, mps: &MPS, return_avg: bool) -> Tensor {
     }
 }
 
-// Training loop is sizeable; left as TODO for now.
-// pub fn train_gmps(...) -> (Tensor, MPS) { todo!("Implement optimizer loop"); }
+/// Evaluate NLL over a selected subset of feature positions.
+/// Note: for now, when `indices` covers all positions, this defers to `eval_nll`.
+/// For partial subsets, this currently returns an error (TODO: implement full matrix-env version).
+pub fn eval_nll_selected_features(
+    samples: &Tensor,
+    mps: &MPS,
+    indices: &[i64],
+    return_avg: bool,
+) -> Tensor {
+    let feature_num = samples.size()[1] as usize;
+    // validate indices
+    let mut set = std::collections::BTreeSet::new();
+    for &i in indices {
+        assert!(i >= 0 && (i as usize) < feature_num);
+        set.insert(i as usize);
+    }
+    if set.len() == feature_num {
+        return eval_nll(samples, mps, return_avg);
+    }
+
+    // Shapes and helpers
+    let dataset = samples.size()[0];
+    let k = samples.kind();
+    let dev = samples.device();
+    let center = mps.center().expect("MPS must have a center");
+    let locals = mps.local_tensors();
+
+    // env tensors as [batch, L, R] where L/R dims vary along sweep
+    let mut env_left = Tensor::ones([dataset, 1, 1], (k, dev));
+    let mut env_right = Tensor::ones([dataset, 1, 1], (k, dev));
+    let mut norms = Tensor::ones([dataset, feature_num as i64], (k, dev));
+
+    let in_subset = |i: usize| set.contains(&i);
+    let sample_at = |idx: usize| samples.i((.., idx as i64, ..));
+
+    // left to center-1
+    for i in 0..center {
+        let lt = &locals[i]; // [l,p,r]
+        env_left = if in_subset(i) {
+            // selected: contract with sample -> [b,l,r]
+            let tmp = Tensor::einsum(
+                "l p r, b p -> b l r",
+                &[lt.shallow_clone(), sample_at(i)],
+                None::<Vec<i64>>,
+            );
+            tmp
+        } else {
+            // unselected: transfer env: E = A^† E A -> [b, r*, r]
+            Tensor::einsum(
+                "lC p rC, b lC l, l p r -> b rC r",
+                &[lt.conj(), env_left.shallow_clone(), lt.shallow_clone()],
+                None::<Vec<i64>>,
+            )
+        };
+        let nf = env_left
+            .copy()
+            .norm_scalaropt_dim(2.0, [-1, -2].as_slice(), false)
+            .squeeze(); // [b]
+        norms.i((.., i as i64)).copy_(&nf);
+        env_left = &env_left / (nf.view([-1, 1, 1]) + EPS);
+    }
+
+    // right to center+1
+    let mut i = feature_num as isize - 1;
+    while (i as usize) > center {
+        let ui = i as usize;
+        let rt = &locals[ui];
+        env_right = if in_subset(ui) {
+            let tmp = Tensor::einsum(
+                "l p r, b p -> b l r",
+                &[rt.shallow_clone(), sample_at(ui)],
+                None::<Vec<i64>>,
+            );
+            // map to [b, l, r] then contract as right-env build requires later
+            tmp
+        } else {
+            Tensor::einsum(
+                "lC p rC, b rC r, l p r -> b lC l",
+                &[rt.conj(), env_right.shallow_clone(), rt.shallow_clone()],
+                None::<Vec<i64>>,
+            )
+        };
+        let nf = env_right
+            .copy()
+            .norm_scalaropt_dim(2.0, [-1, -2].as_slice(), false)
+            .squeeze();
+        norms.i((.., ui as i64)).copy_(&nf);
+        env_right = &env_right / (nf.view([-1, 1, 1]) + EPS);
+        i -= 1;
+    }
+
+    // center contribution
+    let ct = &locals[center]; // [l,p,r]
+    let center_nf = if in_subset(center) {
+        // contract sample first -> [b,l,r]
+        let new_c = Tensor::einsum(
+            "l p r, b p -> b l r",
+            &[ct.shallow_clone(), sample_at(center)],
+            None::<Vec<i64>>,
+        );
+        Tensor::einsum(
+            "b lC l, b lC rC, b l r, b rC r -> b",
+            &[
+                env_left.shallow_clone(),
+                new_c.conj(),
+                new_c,
+                env_right.shallow_clone(),
+            ],
+            None::<Vec<i64>>,
+        )
+        .abs()
+    } else {
+        Tensor::einsum(
+            "lC p rC, l p r, b lC l, b rC r -> b",
+            &[ct.conj(), ct.shallow_clone(), env_left, env_right],
+            None::<Vec<i64>>,
+        )
+        .abs()
+    };
+    norms.i((.., center as i64)).copy_(&center_nf);
+
+    let nll = calc_nll(&norms);
+    if return_avg { nll.mean(k) } else { nll }
+}
+
+pub fn calc_gradient(
+    env_left: &Tensor,
+    env_right: &Tensor,
+    sample: &Tensor,
+    current_tensor: &Tensor,
+    enable_tsgo: bool,
+) -> Tensor {
+    let raw_grad = Tensor::einsum(
+        "b l, b p, b r -> b l p r",
+        &[
+            env_left.shallow_clone(),
+            sample.shallow_clone(),
+            env_right.shallow_clone(),
+        ],
+        None::<Vec<i64>>,
+    );
+    let norm = Tensor::einsum(
+        "l p r, b l p r -> b",
+        &[current_tensor.shallow_clone(), raw_grad.shallow_clone()],
+        None::<Vec<i64>>,
+    );
+    let sign = norm.sign();
+    let norm = norm + sign * EPS;
+    let grad_part = (raw_grad / norm.view([-1, 1, 1, 1])).mean_dim(
+        [0].as_slice(),
+        false,
+        current_tensor.kind(),
+    );
+    let mut grad: Tensor = 2.0 * (current_tensor - &grad_part);
+    if enable_tsgo {
+        let g_flat = grad.view([-1]);
+        let w_flat = current_tensor.view([-1]);
+        let proj = g_flat.dot(&w_flat) * w_flat;
+        let size = current_tensor.size();
+        grad = (g_flat - proj).view(size.as_slice());
+    }
+    let norm = grad.norm();
+    &grad / norm
+}
+
+pub fn train_gmps(
+    samples: &Tensor,
+    batch_size: i64,
+    mut mps: MPS,
+    sweep_times: i64,
+    lr: f64,
+    enable_tsgo: bool,
+) -> (Tensor, MPS) {
+    let dataset_size = samples.size()[0];
+    assert!(dataset_size % batch_size == 0);
+    mps.center_orthogonalization(0, "qr", None, true, true);
+    let init_nll = eval_nll(samples, &mps, true);
+    let mut losses: Vec<Tensor> = vec![init_nll];
+    let feature_num = samples.size()[1] as usize;
+    let k = samples.kind();
+    let dev = samples.device();
+    for _ in 0..sweep_times {
+        let mut epoch_losses: Vec<Tensor> = Vec::new();
+        let mut start = 0;
+        while start < dataset_size {
+            let end = (start + batch_size).min(dataset_size);
+            let batch = samples.i(start..end);
+            let bsz = batch.size()[0];
+            // Prepare env vectors
+            let left_dim = mps.local_tensors()[0].size()[0];
+            let right_dim = mps.local_tensors().last().unwrap().size()[2];
+            let mut env_left: Vec<Option<Tensor>> = (0..feature_num).map(|_| None).collect();
+            env_left[0] = Some(Tensor::ones([bsz, left_dim], (k, dev)));
+            let mut env_right: Vec<Option<Tensor>> = (0..feature_num).map(|_| None).collect();
+            env_right[feature_num - 1] = Some(Tensor::ones([bsz, right_dim], (k, dev)));
+
+            let data_at = |idx: usize| batch.i((.., idx as i64, ..));
+            // Right-to-left prepare
+            let center = mps.center().unwrap();
+            let locals_now = mps.local_tensors();
+            let mut idx = feature_num as isize - 1;
+            while (idx as usize) > center {
+                let i = idx as usize;
+                let (next_r, _nf) = calc_right_to_left_step(
+                    &locals_now[i],
+                    env_right[i].as_ref().unwrap(),
+                    &data_at(i),
+                );
+                env_right[i - 1] = Some(next_r);
+                idx -= 1;
+            }
+            // Left to right
+            for i in 0..feature_num {
+                assert_eq!(i, mps.center().unwrap());
+                let locals_now = mps.local_tensors();
+                let l_env = env_left[i].as_ref().unwrap();
+                let fallback_r = Tensor::ones([bsz, locals_now[i].size()[2]], (k, dev));
+                let r_env = env_right[i].as_ref().unwrap_or(&fallback_r);
+                let grad = calc_gradient(l_env, r_env, &data_at(i), &locals_now[i], enable_tsgo);
+                mps.force_set_local_tensor(i, &locals_now[i] - lr * &grad);
+                if i < feature_num - 1 {
+                    mps.center_orthogonalization((i + 1) as isize, "qr", None, true, true);
+                    let locals_now = mps.local_tensors();
+                    let (next_l, _nf) = calc_left_to_right_step(
+                        &locals_now[i],
+                        env_left[i].as_ref().unwrap(),
+                        &data_at(i),
+                    );
+                    env_left[i + 1] = Some(next_l);
+                } else {
+                    mps.center_normalize();
+                }
+            }
+            // Right to left
+            for i in (0..feature_num).rev() {
+                assert_eq!(i, mps.center().unwrap());
+                let locals_now = mps.local_tensors();
+                let fallback_l = Tensor::ones([bsz, locals_now[i].size()[0]], (k, dev));
+                let l_env = env_left[i].as_ref().unwrap_or(&fallback_l);
+                let r_env = env_right[i].as_ref().unwrap();
+                let grad = calc_gradient(l_env, r_env, &data_at(i), &locals_now[i], enable_tsgo);
+                mps.force_set_local_tensor(i, &locals_now[i] - lr * &grad);
+                if i > 0 {
+                    mps.center_orthogonalization((i - 1) as isize, "qr", None, true, true);
+                    let locals_now = mps.local_tensors();
+                    let (next_r, _nf) = calc_right_to_left_step(
+                        &locals_now[i],
+                        env_right[i].as_ref().unwrap(),
+                        &data_at(i),
+                    );
+                    env_right[i - 1] = Some(next_r);
+                } else {
+                    mps.center_normalize();
+                }
+            }
+            let loss = eval_nll(&batch, &mps, true);
+            epoch_losses.push(loss);
+            start = end;
+        }
+        let epoch = Tensor::stack(&epoch_losses, 0).mean(epoch_losses[0].kind());
+        losses.push(epoch);
+    }
+    (Tensor::stack(&losses, 0), mps)
+}
+
+/// Generate a sample using a GMPS by sequentially measuring sites.
+/// If `sample` and `gen_indices` are provided, projects non-generated sites using the provided feature mapping
+/// and generates only on `gen_indices`. Returns the average over `sample_num` draws as a length-L float tensor in [0,1].
+pub fn generate_sample_with_gmps(
+    mps: &MPS,
+    sample: Option<&Tensor>,            // [L] or [1,L] with values in [0,1] for feature mapping
+    sample_num: i64,
+    gen_indices: Option<&[i64]>,
+    gen_order: &str,                    // "ascending" | "descending"
+    feature_mapping: &str,              // currently only "cossin"
+    theta: f64,
+) -> Tensor {
+    assert!(sample_num > 0);
+    let length = mps.len() as i64;
+    let k = mps.local_tensors()[0].kind();
+    let dev = mps.local_tensors()[0].device();
+    let mut gen_list: Vec<i64> = if let Some(idx) = gen_indices {
+        idx.to_vec()
+    } else {
+        (0..length).collect()
+    };
+    if gen_order == "descending" {
+        gen_list.reverse();
+    } else {
+        assert!(gen_order == "ascending");
+    }
+    assert!(feature_mapping == "cossin", "only cossin mapping is supported for now");
+
+    // Prepare projected MPS if partial info is provided
+    let mut base_mps: MPS;
+    let mut remaining_positions: Vec<i64>;
+    if let Some(s) = sample {
+        let s = if s.dim() == 2 { s.squeeze_dim(0) } else { s.shallow_clone() };
+        assert_eq!(s.dim(), 1);
+        assert_eq!(s.size()[0], length);
+        // project indices = all \ gen_list
+        let mut project_idx: Vec<i64> = (0..length).collect();
+        for &g in &gen_list { project_idx.retain(|&x| x != g); }
+        if project_idx.is_empty() {
+            base_mps = MPS::from_tensors(mps.local_tensors().to_vec(), Some(false));
+            remaining_positions = gen_list.clone();
+        } else {
+            // feature mapping for projection positions
+            let mut vals: Vec<Tensor> = Vec::with_capacity(project_idx.len());
+            for &pi in &project_idx { vals.push(s.i(pi)); }
+            let proj_vec = Tensor::stack(&vals, 0).to_kind(k).to_device(dev); // [P]
+            let feats = crate::feature_mapping::cossin_feature_map(&proj_vec.unsqueeze(0), theta, false)
+                .squeeze_dim(0); // [P,2]
+            base_mps = mps.project_multi_qubits_vec(&project_idx, &feats);
+            // remaining positions are exactly gen_list in original order, map them to new indices [0..L-P)
+            // After projection, the remaining sites preserve relative order; new index = position within the sorted remaining set
+            let mut rem: Vec<i64> = (0..length).collect();
+            for &pi in &project_idx { rem.retain(|&x| x != pi); }
+            remaining_positions = rem;
+            // rem maps new index -> original index
+            // gen_list refers to original indices; ensure all are in rem
+            for &g in &gen_list { assert!(remaining_positions.contains(&g)); }
+        }
+    } else {
+        base_mps = MPS::from_tensors(mps.local_tensors().to_vec(), Some(false));
+        remaining_positions = (0..length).collect();
+    }
+
+    // Map original gen indices to new indices in the (possibly) projected MPS
+    let mut gen_new: Vec<i64> = gen_list
+        .iter()
+        .map(|&g| remaining_positions.iter().position(|&x| x == g).unwrap() as i64)
+        .collect();
+
+    // accumulator over runs
+    let mut acc = Tensor::zeros([length], (Kind::Float, tch::Device::Cpu));
+    for _ in 0..sample_num {
+        let mut mps_i = MPS::from_tensors(base_mps.local_tensors().to_vec(), Some(false));
+        let mut rem_i = remaining_positions.clone();
+        let mut gen_i = gen_new.clone();
+        let mut out = if let Some(s) = sample { s.to_device(tch::Device::Cpu).to_kind(Kind::Float) } else { Tensor::zeros([length], (Kind::Float, tch::Device::Cpu)) };
+        let mut pos = 0;
+        while !gen_i.is_empty() {
+            let gen_idx = gen_i[0] as usize; // index in current MPS
+            let gen_orig = rem_i[gen_idx as usize] as i64; // original position
+            mps_i.center_orthogonalization(gen_idx as isize, "qr", None, true, true);
+            let rdm = mps_i.one_body_reduced_density_matrix(gen_idx, true, true);
+            let p1 = rdm.double_value(&[1, 1]);
+            let pt = Tensor::from(p1).to_kind(Kind::Float);
+            let state = pt.bernoulli().to_kind(Kind::Int64).int64_value(&[]);
+            // set output at original position
+            out.i(gen_orig).copy_(&Tensor::from(state as f64));
+            // project site and update indices
+            let new_mps = mps_i.project_multi_qubits_indices(&[gen_idx as i64], &[state]);
+            mps_i = new_mps;
+            mps_i.center_orthogonalization((gen_idx as isize).saturating_sub(1), "qr", None, true, true);
+            // remove this position from remaining positions and update mapping
+            rem_i.remove(gen_idx);
+            gen_i.remove(0);
+            for g in &mut gen_i { if (*g as usize) > gen_idx { *g -= 1; } }
+            pos += 1;
+        }
+        acc += &out;
+    }
+    &acc / (sample_num as f64)
+}
+
+/// Classify by picking the MPS with minimum NLL over all features.
+pub fn gmps_classify(samples: &Tensor, gmpss: &[MPS]) -> Tensor {
+    assert!(samples.dim() == 3);
+    let mut nlls: Vec<Tensor> = Vec::with_capacity(gmpss.len());
+    for g in gmpss {
+        nlls.push(eval_nll(samples, g, false));
+    }
+    let mat = Tensor::stack(&nlls, 1); // [B, G]
+    mat.argmin(1, false).to_kind(Kind::Int64)
+}
+
+/// Classify using only a subset of features.
+pub fn gmps_classify_with_selected_features(samples: &Tensor, gmpss: &[MPS], indices: &[i64]) -> Tensor {
+    assert!(samples.dim() == 3);
+    let mut nlls: Vec<Tensor> = Vec::with_capacity(gmpss.len());
+    for g in gmpss {
+        nlls.push(eval_nll_selected_features(samples, g, indices, false));
+    }
+    let mat = Tensor::stack(&nlls, 1);
+    mat.argmin(1, false).to_kind(Kind::Int64)
+}

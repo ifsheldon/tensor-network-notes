@@ -18,8 +18,10 @@ pub fn eigs_power(mat: &Tensor, which: &str, v0: Option<&Tensor>) -> tch::Result
 
     let tau = 0.01_f64;
     let rho = match which.as_str() {
-        "la" => h.matrix_exp(),
-        "lm" => (h.matmul(h)).matrix_exp(),
+        // match Python: use exp(tau * H) and exp(tau * H^2) for LA/LM
+        "la" => (h * tau).matrix_exp(),
+        "lm" => ((h.matmul(h)) * tau).matrix_exp(),
+        // and exp(-tau * H), exp(-tau * H^2) for SA/SM
         "sa" => (h * (-tau)).matrix_exp(),
         "sm" => ((h.matmul(h)) * (-tau)).matrix_exp(),
         _ => panic!("which must be one of la/lm/sa/sm"),
@@ -74,5 +76,20 @@ mod tests {
         assert!(nrm > 0.9 && nrm < 1.1);
         let ev = eval.double_value(&[]);
         assert!(ev.is_finite());
+    }
+
+    fn check_residual(h: &Tensor, which: &str) {
+        let (eval, evec) = eigs_power(h, which, None).unwrap();
+        let r = h.matmul(&evec) - &evec * eval;
+        let res = r.norm().double_value(&[]);
+        assert!(res < 1e-5, "residual too large for {}: {}", which, res);
+    }
+
+    #[test]
+    fn test_eigs_power_residual_all_modes() {
+        let h = rand_real_symmetric_matrix(6);
+        for m in ["la", "sa", "lm", "sm"] {
+            check_residual(&h, m);
+        }
     }
 }

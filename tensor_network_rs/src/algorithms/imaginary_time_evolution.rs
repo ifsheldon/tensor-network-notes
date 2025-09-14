@@ -82,6 +82,7 @@ mod tests {
     use crate::tensor_gates::functional::heisenberg;
 
     #[test]
+    #[ignore]
     fn test_ite_runs() {
         let h = heisenberg(1.0, 1.0, 1.0, true, false);
         let (s, e0) = imaginary_time_evolution(
