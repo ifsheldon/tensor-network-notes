@@ -11,6 +11,7 @@ pub mod mps {
     pub mod modules;
 }
 pub mod algorithms {
+    pub mod gmps;
     pub mod imaginary_time_evolution;
     pub mod quantum_kernels;
     pub mod tensor_decomposition;
