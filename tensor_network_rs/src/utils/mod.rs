@@ -64,3 +64,4 @@ mod tests {
 }
 
 pub mod checking;
+pub mod mapping;
