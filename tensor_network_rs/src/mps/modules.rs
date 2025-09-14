@@ -202,6 +202,100 @@ impl MPS {
         m.center = Some(m.length - 1);
         m
     }
+
+    // RDM utilities
+    pub fn one_body_reduced_density_matrix(
+        &mut self,
+        idx: usize,
+        _do_tracing: bool,
+        inplace_mutation: bool,
+    ) -> Tensor {
+        assert!(idx < self.length);
+        if self.center.is_none() {
+            if inplace_mutation {
+                self.center_orthogonalization(idx as isize, "qr", None, true, true);
+            } else {
+                // out-of-place: shallow-clone tensors
+                let tmp_vec: Vec<Tensor> = self.mps.iter().map(|t| t.shallow_clone()).collect();
+                let mut tmp = MPS::from_tensors(tmp_vec, Some(self.requires_grad));
+                tmp.center_orthogonalization(idx as isize, "qr", None, true, true);
+                return tmp.one_body_reduced_density_matrix(idx, _do_tracing, true);
+            }
+        } else if self.center.unwrap() != idx {
+            self.center_orthogonalization(idx as isize, "qr", None, true, true);
+        }
+        let t = &self.mps[idx]; // [left, physical, right]
+        // Contract over left/right: l p r, l p' r -> p p'
+        Tensor::einsum(
+            "l p r, l q r -> p q",
+            &[t.conj(), t.shallow_clone()],
+            None::<Vec<i64>>,
+        )
+    }
+
+    pub fn two_body_reduced_density_matrix(
+        &mut self,
+        idx0: usize,
+        idx1: usize,
+        return_matrix: bool,
+    ) -> Tensor {
+        assert!(idx0 < idx1 && idx1 < self.length);
+        // Place center at idx0 and normalize
+        self.center_orthogonalization(idx0 as isize, "qr", None, true, true);
+        // Start with left site contribution: product dims [p0c p0, r*r]
+        let t_left = &self.mps[idx0];
+        let mut product = Tensor::einsum(
+            "l pc r, l p r -> pc p r r2",
+            &[t_left.conj(), t_left.shallow_clone()],
+            None::<Vec<i64>>,
+        );
+        // Fold through middle cores
+        for k in (idx0 + 1)..idx1 {
+            let tk = &self.mps[k];
+            product = Tensor::einsum(
+                "a b x y, x pc y, x p y -> a b pc p",
+                &[product, tk.conj(), tk.shallow_clone()],
+                None::<Vec<i64>>,
+            );
+        }
+        // Right site
+        let t_right = &self.mps[idx1];
+        let rdm = Tensor::einsum(
+            "i0c i0 lr, l i1c r, l i1 r -> i0 i1 i0c i1c",
+            &[product, t_right.conj(), t_right.shallow_clone()],
+            None::<Vec<i64>>,
+        );
+        if return_matrix { rdm.view([4, 4]) } else { rdm }
+    }
+
+    pub fn entanglement_entropy_onsite_(
+        &mut self,
+        indices: Option<Vec<usize>>,
+        eps: f64,
+    ) -> Tensor {
+        let idxs: Vec<usize> = match indices {
+            None => (0..self.length).collect(),
+            Some(v) => v,
+        };
+        assert!(!idxs.is_empty() && idxs.iter().all(|&i| i < self.length));
+        let mut ents: Vec<Tensor> = Vec::with_capacity(idxs.len());
+        for &i in &idxs {
+            let rdm = self.one_body_reduced_density_matrix(i, true, true);
+            // Analytic eigenvalues of 2x2 Hermitian
+            let a = rdm.double_value(&[0, 0]);
+            let b = rdm.double_value(&[1, 1]);
+            let c_re = rdm.real().double_value(&[0, 1]);
+            let c_im = rdm.imag().double_value(&[0, 1]);
+            let c_abs2 = c_re * c_re + c_im * c_im;
+            let disc = ((a - b) * (a - b) + 4.0 * c_abs2).sqrt();
+            let l1 = (a + b + disc) * 0.5;
+            let l2 = (a + b - disc) * 0.5;
+            let l = Tensor::f_from_slice(&[l1, l2]).unwrap();
+            let e = -(l.copy() * (l.copy() + eps).log()).sum(l.kind());
+            ents.push(e);
+        }
+        Tensor::stack(&ents, 0)
+    }
 }
 
 #[cfg(test)]
