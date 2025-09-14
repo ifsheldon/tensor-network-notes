@@ -47,7 +47,7 @@ mlx = [
 einops = { git = "https://github.com/ifsheldon/einops", branch = "mlx-backend" }
 torch = [
     { index = "torch-cpu", marker = "platform_system == 'Darwin'" },
-    { index = "torch-gpu", marker = "platform_system == 'Linux'" },
+    { index = "torch-cpu", marker = "platform_system == 'Linux'" },
 ]
 
 
