@@ -133,6 +133,20 @@ pub fn observe_bond_energies(
     Tensor::stack(&vals, 0)
 }
 
+pub fn observe_bond_energies_single(
+    quantum_state: &Tensor,
+    hamiltonian: &Tensor,
+    interaction_positions: &[Vec<i64>],
+) -> Tensor {
+    check_state_tensor(quantum_state).expect("invalid state");
+    check_quantum_gate(hamiltonian, None, true).expect("invalid hamiltonian tensor form");
+    let mut vals: Vec<Tensor> = Vec::with_capacity(interaction_positions.len());
+    for pos in interaction_positions {
+        vals.push(calc_observation(quantum_state, hamiltonian, pos.clone(), true));
+    }
+    Tensor::stack(&vals, 0)
+}
+
 pub fn bipartite_entanglement_entropy(
     quantum_state: &Tensor,
     qubit_idx: Option<Vec<i64>>,
