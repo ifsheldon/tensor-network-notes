@@ -29,6 +29,12 @@
 - Some tests are numerically sensitive; allow tolerances and occasional flakiness.
 - If PyTorch behavior is ambiguous, prefer explicit tch-rs ops even if more verbose.
 
+## TODOs / Gaps (tracked)
+- tensor_gates.functional.rotate: depends on complex exponentials and potentially missing ops — TODO.
+- tensor_gates.functional.apply_gate_batched(_with_vmap): no vmap in tch-rs; implement via reshape+bmm later — TODO.
+- tensor_gates.functional.gate_outer_product and einsum-heavy paths: einsum not bound in tch-rs — re-express via reshape+matmul or skip — TODO.
+- pauli_operator("Y"): requires convenient complex tensor constructors — TODO. Current code panics with clear message.
+
 ## Next Steps
 - [ ] Create `src/constants.rs` with `ATOL`, `RTOL` and docs.
 - [ ] Scaffold `src/utils/` with tensor helpers (device, dtype, seeding, allclose).

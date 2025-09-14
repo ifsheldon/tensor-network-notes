@@ -31,6 +31,27 @@ pub fn kron(mats: &[Tensor]) -> Tensor {
     acc
 }
 
+/// Outer product of 1D vectors producing an N-order tensor with shape [d1, d2, ..., dN].
+pub fn gate_outer_product(vectors: &[Tensor]) -> Tensor {
+    assert!(
+        vectors.len() >= 2,
+        "At least two vectors are required for outer product"
+    );
+    for (i, v) in vectors.iter().enumerate() {
+        assert!(v.dim() == 1, "Expected 1D tensor at index {}", i);
+    }
+    let mut out = vectors[0].shallow_clone();
+    for (i, v) in vectors.iter().enumerate().skip(1) {
+        let a = out.unsqueeze(-1);
+        let mut b = v.shallow_clone();
+        for _ in 0..i {
+            b = b.unsqueeze(0);
+        }
+        out = a * b; // broadcast multiplies to grow dimensionality
+    }
+    out
+}
+
 /// Pauli operators X, Y, Z and identity. Y is TODO until convenient complex constructors are available.
 pub fn pauli_operator(pauli: &str, double_precision: bool, force_complex: bool) -> Tensor {
     let mut kind = if double_precision {
@@ -197,6 +218,18 @@ mod tests {
             .view([2, 2]);
         let k = kron(&[a, b]);
         assert_eq!(k.size(), vec![4, 4]);
+    }
+
+    #[test]
+    fn test_gate_outer_product_shapes() {
+        let v1 = Tensor::f_from_slice(&[1.0, 2.0]).unwrap();
+        let v2 = Tensor::f_from_slice(&[3.0, 4.0, 5.0]).unwrap();
+        let v3 = Tensor::f_from_slice(&[6.0]).unwrap();
+        let t = gate_outer_product(&[v1, v2, v3]);
+        assert_eq!(t.size(), vec![2, 3, 1]);
+        // check a value: t[1,2,0] == 2 * 5 * 6
+        let val = t.double_value(&[1, 2, 0]);
+        assert!((val - 60.0).abs() < 1e-12);
     }
 
     #[test]
