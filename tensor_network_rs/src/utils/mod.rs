@@ -62,3 +62,5 @@ mod tests {
         assert!(allclose(&a, &b, None, None, true).unwrap());
     }
 }
+
+pub mod checking;
