@@ -3,6 +3,9 @@ pub mod eigen_decomposition;
 pub mod tensor_gates {
     pub mod functional;
 }
+pub mod quantum_state {
+    pub mod functional;
+}
 pub mod utils;
 
 #[cfg(test)]
