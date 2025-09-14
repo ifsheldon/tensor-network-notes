@@ -1,0 +1,10 @@
+[env]
+LIBTORCH = { value = "../.venv/lib/python3.12/site-packages/torch" , relative = true }
+# on macOS
+#DYLD_LIBRARY_PATH  = { value = ".venv/lib/python3.12/site-packages/torch/lib" , relative = true }
+# on Linux
+LD_LIBRARY_PATH  = { value = "../.venv/lib/python3.12/site-packages/torch/lib" , relative = true, force = true }
+
+[target.'cfg(target_os = "linux")']
+# This bakes the search path into the binary, so it works regardless of the environment.
+rustflags = ["-C", "link-arg=-Wl,-rpath,/home/Maple/code/tensor-network-notes/.venv/lib/python3.12/site-packages/torch/lib"]
