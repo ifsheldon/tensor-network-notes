@@ -112,6 +112,37 @@ pub fn spin_operator(direction: &str) -> Tensor {
     }
 }
 
+pub fn heisenberg(
+    jx: f64,
+    jy: f64,
+    jz: f64,
+    double_precision: bool,
+    return_matrix: bool,
+) -> Tensor {
+    let px = pauli_operator("X", double_precision, true);
+    let py = pauli_operator("Y", double_precision, true);
+    let pz = pauli_operator("Z", double_precision, true);
+    // h = jx X⊗X + jy Y⊗Y + jz Z⊗Z
+    let xx = Tensor::einsum(
+        "ab, ij -> aibj",
+        &[px.shallow_clone(), px],
+        None::<Vec<i64>>,
+    );
+    let yy = Tensor::einsum(
+        "ab, ij -> aibj",
+        &[py.shallow_clone(), py],
+        None::<Vec<i64>>,
+    );
+    let zz = Tensor::einsum(
+        "ab, ij -> aibj",
+        &[pz.shallow_clone(), pz],
+        None::<Vec<i64>>,
+    );
+    let mut h = &xx * jx + &yy * jy + &zz * jz;
+    h = &h / 4.0;
+    if return_matrix { h.view([4, 4]) } else { h }
+}
+
 /// Rotation gate from scalars (ita, beta, delta, gamma) as in the notebook.
 pub fn rotate_from_scalars(
     ita: f64,

@@ -10,6 +10,12 @@ pub mod mps {
     pub mod functional;
     pub mod modules;
 }
+pub mod algorithms {
+    pub mod imaginary_time_evolution;
+    pub mod quantum_kernels;
+    pub mod tensor_decomposition;
+    pub mod time_evolving_block_decimation;
+}
 pub mod utils;
 
 #[cfg(test)]

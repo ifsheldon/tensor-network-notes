@@ -196,6 +196,15 @@ impl MPS {
         MPS::from_tensors(new_locals, Some(self.requires_grad))
     }
 
+    pub fn project_multi_qubits_indices(&self, qubit_indices: &[i64], states_idx: &[i64]) -> MPS {
+        let new_locals = crate::mps::functional::project_multi_qubits_indices(
+            &self.mps,
+            qubit_indices,
+            states_idx,
+        );
+        MPS::from_tensors(new_locals, Some(self.requires_grad))
+    }
+
     pub fn from_state_tensor(state_tensor: &Tensor, max_rank: Option<i64>, use_svd: bool) -> MPS {
         let (locals, _clipped) = tt_decomposition(state_tensor, max_rank, use_svd);
         let mut m = MPS::from_tensors(locals, Some(false));

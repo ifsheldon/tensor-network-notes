@@ -35,6 +35,8 @@
 - tensor_gates.functional.gate_outer_product and einsum-heavy paths: einsum not bound in tch-rs — re-express via reshape+matmul or skip — TODO.
 - pauli_operator("Y"): requires convenient complex tensor constructors — TODO. Current code panics with clear message.
 
+Update: pauli Y, rotate_from_scalars, named_einsum, heisenberg Hamiltonian, quantum_state + MPS core are ported. Remaining algorithms (gmps, quantum_kernels, lazy_classifier, tensor_decomposition variants) are not yet ported; will add incrementally. Save/load via safetensors is currently unimplemented — TODO.
+
 ## Next Steps
 - [ ] Create `src/constants.rs` with `ATOL`, `RTOL` and docs.
 - [ ] Scaffold `src/utils/` with tensor helpers (device, dtype, seeding, allclose).

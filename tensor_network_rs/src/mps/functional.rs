@@ -167,6 +167,76 @@ pub fn project_multi_qubits_vec(
     local_tensors
 }
 
+pub fn project_multi_qubits_indices(
+    mps_local_tensors: &[Tensor],
+    qubit_indices: &[i64],
+    project_to_states: &[i64],
+) -> Vec<Tensor> {
+    assert_eq!(qubit_indices.len(), project_to_states.len());
+    let mut local_tensors: Vec<Tensor> = mps_local_tensors
+        .iter()
+        .map(|t| t.shallow_clone())
+        .collect();
+    if qubit_indices.is_empty() {
+        return local_tensors;
+    }
+    for (i, &qidx) in qubit_indices.iter().enumerate() {
+        let lt = &local_tensors[qidx as usize];
+        let state_idx = project_to_states[i];
+        assert!(state_idx >= 0 && state_idx < lt.size()[1]);
+        local_tensors[qidx as usize] = lt.i((.., state_idx, ..));
+    }
+    let mut idxs: Vec<i64> = qubit_indices.to_vec();
+    idxs.sort_by(|a, b| b.cmp(a));
+    for &qidx in idxs.iter().take(idxs.len().saturating_sub(1)) {
+        assert!(qidx > 0);
+        let left = (qidx - 1) as usize;
+        let right = qidx as usize;
+        let merged = Tensor::einsum(
+            "a b, b c -> a c",
+            &[
+                local_tensors[left].shallow_clone(),
+                local_tensors[right].shallow_clone(),
+            ],
+            None::<Vec<i64>>,
+        );
+        local_tensors[left] = merged;
+        let _ = local_tensors.remove(right);
+    }
+    if local_tensors.len() > 1 {
+        let qidx = *idxs.last().unwrap() as usize;
+        if qidx == 0 {
+            let merged = Tensor::einsum(
+                "a b, b c -> a c",
+                &[
+                    local_tensors[qidx].shallow_clone(),
+                    local_tensors[1].shallow_clone(),
+                ],
+                None::<Vec<i64>>,
+            );
+            local_tensors[1] = merged;
+        } else {
+            let left = qidx - 1;
+            let merged = Tensor::einsum(
+                "a b, b c -> a c",
+                &[
+                    local_tensors[left].shallow_clone(),
+                    local_tensors[qidx].shallow_clone(),
+                ],
+                None::<Vec<i64>>,
+            );
+            local_tensors[left] = merged;
+        }
+        let _ = local_tensors.remove(qidx);
+    }
+    for lt in &mut local_tensors {
+        if lt.dim() == 2 {
+            *lt = lt.unsqueeze(1);
+        }
+    }
+    local_tensors
+}
+
 pub fn orthogonalize_left2right_step(
     mps_tensors: &[Tensor],
     local_tensor_idx: usize,
