@@ -8,6 +8,7 @@ pub mod quantum_state {
 }
 pub mod mps {
     pub mod functional;
+    pub mod modules;
 }
 pub mod utils;
 
