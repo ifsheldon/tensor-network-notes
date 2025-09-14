@@ -1,3 +1,4 @@
+use crate::utils::einsum::named_einsum;
 use crate::utils::mapping::{
     map_float_kind_to_complex, unify_tensor_dtypes, view_gate_matrix_as_tensor,
 };
@@ -237,12 +238,13 @@ pub fn apply_gate(
     let state = state_u.permute(&perm);
     let state_shape = state.size();
 
-    // Gate to matrix (2^t x 2^t)
+    // Gate to tensor form [g1..gt, t1..tt]
     let d_t = 1_i64 << num_target;
-    let gate_m = if gate_u.dim() == 2 {
-        gate_u.shallow_clone()
+    let gate_t = if gate_u.dim() == 2 {
+        let dims = vec![2_i64; (2 * num_target) as usize];
+        gate_u.view(&dims[..])
     } else {
-        gate_u.view([d_t, d_t])
+        gate_u.shallow_clone()
     };
 
     // Reshape to [2^t * 2^o, 2^c]
@@ -257,8 +259,25 @@ pub fn apply_gate(
         Tensor::zeros([d_t * d_o, 0], (state2.kind(), state2.device()))
     };
     let last_col = state2.i((.., d_c - 1)); // shape: [d_t*d_o]
-    let last_as_matrix = last_col.view([d_t, d_o]);
-    let new_last = gate_m.matmul(&last_as_matrix).view([d_t * d_o, 1]);
+    let last_dims = vec![2_i64; (num_target + (other.len() as i64)) as usize];
+    let last_as_tensor = last_col.view(&last_dims[..]);
+    // Use named einsum: (g t, t o) -> (g o)
+    let g_names: Vec<String> = (0..num_target).map(|i| format!("g{}", i)).collect();
+    let t_names: Vec<String> = (0..num_target).map(|i| format!("t{}", i)).collect();
+    let o_names: Vec<String> = (0..(other.len() as i64))
+        .map(|i| format!("o{}", i))
+        .collect();
+    let gate_dims = format!("{} {}", g_names.join(" "), t_names.join(" "));
+    let state_dims = format!("{} {}", t_names.join(" "), o_names.join(" "));
+    let out_dims = format!("{} {}", g_names.join(" "), o_names.join(" "));
+    let spec = format!(
+        "{}, {} -> {}",
+        gate_dims.trim(),
+        state_dims.trim(),
+        out_dims.trim()
+    );
+    let new_last_t = named_einsum(&spec, &[gate_t.shallow_clone(), last_as_tensor]);
+    let new_last = new_last_t.view([d_t * d_o, 1]);
     let final2 = if d_c > 1 {
         Tensor::cat(&[unaffected, new_last], 1)
     } else {
