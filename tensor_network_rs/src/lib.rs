@@ -19,5 +19,14 @@ mod tests {
         assert!(!allclose(&a, &c, None, Some(1e-8), false).unwrap());
     }
 
+    #[test]
+    fn test_einsum() {
+        let einsum_path = None::<Vec<i64>>; // always use default path, no manual path
+        let a = Tensor::f_from_slice(&[1.0_f64, 2.0, 3.0]).unwrap();
+        let b = Tensor::f_from_slice(&[4.0_f64, 5.0, 6.0]).unwrap();
+        let c = Tensor::einsum("a,b->", &[a, b], einsum_path);
+        println!("{:?}", c);
+    }
+
     // Note: tch's global RNG and test parallelism can interact; omit strict reproducibility test.
 }

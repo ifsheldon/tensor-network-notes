@@ -73,9 +73,16 @@ pub fn pauli_operator(pauli: &str, double_precision: bool, force_complex: bool) 
             .view([2, 2]),
         "ID" => Tensor::eye(2, (kind, Device::Cpu)),
         "Y" => {
-            // TODO: implement complex Y = [[0,-i],[i,0]] once convenient complex constructors are available in tch-rs.
-            // Temporary placeholder: raise panic to make absence explicit.
-            panic!("Pauli-Y requires complex support; TODO in port_plan.md")
+            // Y = [[0, -i], [i, 0]]
+            let k_complex = if double_precision {
+                Kind::ComplexDouble
+            } else {
+                Kind::ComplexFloat
+            };
+            // re = [[0,0],[0,0]], im = [[0,-1],[1,0]]
+            let re = [0.0, 0.0, 0.0, 0.0];
+            let im = [0.0, -1.0, 1.0, 0.0];
+            crate::utils::complex_from_slices(&re, &im, &[2, 2], k_complex)
         }
         _ => panic!("pauli must be one of X, Y, Z, ID"),
     }
@@ -99,12 +106,64 @@ pub fn identity_gate_tensor(num_qubits: i64, matrix_form: bool, kind: Option<Kin
 pub fn spin_operator(direction: &str) -> Tensor {
     match direction {
         "X" | "Z" | "ID" => pauli_operator(direction, false, false) / 2.0,
-        "Y" => {
-            // TODO: implement Y = [[0,-i],[i,0]] when complex constructors are ergonomic.
-            panic!("spin_operator Y requires complex; TODO");
-        }
+        "Y" => pauli_operator("Y", false, true) / 2.0,
         _ => panic!("direction must be one of X, Y, Z, ID"),
     }
+}
+
+/// Rotation gate from scalars (ita, beta, delta, gamma) as in the notebook.
+pub fn rotate_from_scalars(
+    ita: f64,
+    beta: f64,
+    delta: f64,
+    gamma: f64,
+    double_precision: bool,
+) -> Tensor {
+    let k_complex = if double_precision {
+        Kind::ComplexDouble
+    } else {
+        Kind::ComplexFloat
+    };
+    let k_real = if double_precision {
+        Kind::Double
+    } else {
+        Kind::Float
+    };
+
+    // Coefficient matrices (complex dtype but purely real values)
+    let beta_coeff = Tensor::f_from_slice(&[-0.5, -0.5, 0.5, 0.5])
+        .unwrap()
+        .to_kind(k_real)
+        .view([2, 2])
+        .to_kind(k_complex);
+    let delta_coeff = beta_coeff.tr();
+
+    let beta_t = Tensor::from(beta).to_kind(k_real);
+    let delta_t = Tensor::from(delta).to_kind(k_real);
+    let ita_t = Tensor::from(ita).to_kind(k_real);
+    let gamma_t = Tensor::from(gamma).to_kind(k_real);
+
+    let beta_mat = &beta_coeff * beta_t;
+    let delta_mat = &delta_coeff * delta_t;
+
+    // gamma block: cos(gamma/2) * I + sin(gamma/2) * X
+    let gamma_2 = &gamma_t / 2.0;
+    let eye = Tensor::eye(2, (k_complex, Device::Cpu));
+    let x = pauli_operator("X", double_precision, true);
+    let gamma_mat = eye * gamma_2.cos().to_kind(k_complex) + x * gamma_2.sin().to_kind(k_complex);
+
+    let coefficient = Tensor::f_from_slice(&[1.0, -1.0, 1.0, 1.0])
+        .unwrap()
+        .to_kind(k_real)
+        .view([2, 2])
+        .to_kind(k_complex);
+
+    // exp(i * (ita + beta + delta)) = cos(phase) + i sin(phase)
+    let phase = ita_t + beta_mat.real() + delta_mat.real();
+    let phase_cos = phase.cos().to_kind(k_real).to_kind(k_complex);
+    let phase_sin = phase.sin().to_kind(k_real);
+    let exp_i_phase = Tensor::f_complex(&phase_cos.to_kind(k_real), &phase_sin).unwrap();
+    coefficient * exp_i_phase * gamma_mat
 }
 
 pub fn get_control_gate_tensor(
@@ -312,5 +371,22 @@ mod tests {
             .view([2, 2]);
         // check diagonal ones at top-left 2x2
         assert!(u.i((0..2, 0..2)).eq_tensor(&v).all().int64_value(&[]) != 0);
+    }
+
+    #[test]
+    fn test_pauli_y_square_identity() {
+        let y = pauli_operator("Y", true, true);
+        let yy = y.matmul(&y);
+        let i = Tensor::eye(2, (y.kind(), y.device()));
+        let diff = (yy - i).abs().sum(y.kind()).double_value(&[]);
+        assert!(diff < 1e-10);
+    }
+
+    #[test]
+    fn test_rotate_from_scalars_basic() {
+        let g = rotate_from_scalars(0.1, 0.2, -0.3, 0.4, true);
+        assert_eq!(g.size(), vec![2, 2]);
+        let s = g.abs().sum(g.kind()).double_value(&[]);
+        assert!(s.is_finite());
     }
 }
