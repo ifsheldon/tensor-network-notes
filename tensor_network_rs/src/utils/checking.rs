@@ -29,11 +29,6 @@ fn is_power_of_two(x: i64) -> bool {
     x > 0 && (x & (x - 1)) == 0
 }
 
-fn ilog2(x: i64) -> i64 {
-    // assumes x is a power of two
-    (63 - x.leading_zeros() as i64) - (63 - (x - 1).leading_zeros() as i64 - 1)
-}
-
 /// Validate a quantum gate tensor. Returns the inferred/validated number of qubits.
 pub fn check_quantum_gate(
     t: &Tensor,
@@ -60,11 +55,10 @@ pub fn check_quantum_gate(
         let nq = if let Some(nq) = num_qubits {
             nq
         } else {
-            // infer from dimension
             if !is_power_of_two(m) {
                 return Err(format!("matrix dim {} is not 2^k", m));
             }
-            ilog2(m)
+            (m as f64).log2() as i64
         };
         if m != n || m != 2_i64.pow(nq as u32) {
             return Err(format!(
