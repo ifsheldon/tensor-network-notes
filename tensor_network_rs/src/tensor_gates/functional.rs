@@ -94,6 +94,19 @@ pub fn identity_gate_tensor(num_qubits: i64, matrix_form: bool, kind: Option<Kin
     }
 }
 
+/// Heisenberg/Pauli spin operator along a direction.
+/// Note: Y requires complex support. TODO: implement complex constants and return proper Y.
+pub fn spin_operator(direction: &str) -> Tensor {
+    match direction {
+        "X" | "Z" | "ID" => pauli_operator(direction, false, false) / 2.0,
+        "Y" => {
+            // TODO: implement Y = [[0,-i],[i,0]] when complex constructors are ergonomic.
+            panic!("spin_operator Y requires complex; TODO");
+        }
+        _ => panic!("direction must be one of X, Y, Z, ID"),
+    }
+}
+
 pub fn get_control_gate_tensor(
     num_control_qubits: i64,
     applied_gate: &Tensor,
@@ -202,6 +215,63 @@ pub fn apply_gate(
         inv[p as usize] = i as i64;
     }
     final_state.permute(&inv)
+}
+
+/// Batched version by simple looping over batch dim (TODO: vectorize/einsum/vmap).
+pub fn apply_gate_batched(
+    quantum_states: &Tensor, // [B, 2, 2, ..., 2]
+    gate: &Tensor,
+    target_qubit: Vec<i64>,
+    control_qubit: Option<Vec<i64>>,
+) -> Tensor {
+    let b = quantum_states.size()[0];
+    let mut outs: Vec<Tensor> = Vec::with_capacity(b as usize);
+    for i in 0..b {
+        let s = quantum_states.i(i);
+        let out = apply_gate(&s, gate, target_qubit.clone(), control_qubit.clone());
+        outs.push(out);
+    }
+    Tensor::stack(&outs, 0)
+}
+
+/// Placeholder for vmap-style API. TODO: replace looping with a vectorized contraction.
+pub fn apply_gate_batched_with_vmap(
+    quantum_states: &Tensor,
+    gate: &Tensor,
+    target_qubit: Vec<i64>,
+    control_qubit: Option<Vec<i64>>,
+) -> Tensor {
+    // TODO: use a single einsum/batched matmul once API is stabilized or added.
+    apply_gate_batched(quantum_states, gate, target_qubit, control_qubit)
+}
+
+/// Random unitary via Gram-Schmidt orthogonalization (fallback without linalg::qr bindings).
+pub fn rand_unitary(dim: i64, kind: Option<Kind>) -> Tensor {
+    let k = kind.unwrap_or(default_float_kind());
+    let m = Tensor::randn([dim, dim], (k, Device::Cpu));
+    let mut q_cols: Vec<Tensor> = Vec::with_capacity(dim as usize);
+    for j in 0..dim {
+        let mut v = m.i((.., j));
+        for qc in &q_cols {
+            let proj = (&v * qc).sum(k) / (qc.square().sum(k) + 1e-12);
+            v = &v - &(qc * proj);
+        }
+        let n = v.norm();
+        let v = &v / (n + 1e-12);
+        q_cols.push(v);
+    }
+    Tensor::stack(&q_cols, 1)
+}
+
+pub fn rand_gate_tensor(num_qubits: i64, matrix_form: bool, kind: Option<Kind>) -> Tensor {
+    let dim = 1_i64 << num_qubits;
+    let u = rand_unitary(dim, kind);
+    if matrix_form {
+        u
+    } else {
+        let dims = vec![2_i64; (num_qubits * 2) as usize];
+        u.view(&dims[..])
+    }
 }
 
 #[cfg(test)]
