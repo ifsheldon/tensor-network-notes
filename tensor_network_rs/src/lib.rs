@@ -1,31 +1,26 @@
+pub mod constants;
+pub mod utils;
+
 #[cfg(test)]
 mod tests {
-    use tch::nn::{Adam, OptimizerConfig, VarStore};
+    use crate::utils::{allclose, set_seed};
     use tch::{Device, Kind, Tensor};
 
     #[test]
-    pub fn it_works() {
-        let a = Tensor::ones([2, 2], (Kind::Float, Device::Cpu));
-        let b = a * 2. * 2.;
-        let result = b.sum(Kind::Float).double_value(&[]);
-        assert_eq!(result, 2. * 2. * (2. * 2.));
+    fn test_allclose_basic() {
+        let a = Tensor::f_from_slice(&[1.0_f64, 2.0, 3.0]).unwrap();
+        let b = &a + 1e-7;
+        assert!(allclose(&a, &b, None, None, false).unwrap());
+        let c = &a + 1e-3;
+        assert!(!allclose(&a, &c, None, Some(1e-8), false).unwrap());
     }
 
     #[test]
-    pub fn test_optimizer() {
-        let vs = VarStore::new(Device::Cpu);
-        let root = vs.root();
-        let mut adam = Adam::default().build(&vs, 1e-1).unwrap();
-        let v = root.randn("v", &[2, 2, 2, 2], 0.0, 1.0);
-        let v_copy = v.copy();
-        v_copy.print();
-        let loss = v.pow_tensor_scalar(2).sum(Kind::Float);
-        loss.backward();
-        let gradient = v.grad();
-        assert!(gradient.allclose(&(2 * v.copy()), 1e-5, 1e-5, false));
-        adam.step();
-        adam.zero_grad();
-        v.print();
-        assert!(!v.allclose(&v_copy, 1e-5, 1e-5, false));
+    fn test_set_seed_reproducible() {
+        set_seed(42);
+        let x1 = Tensor::randn([2, 3], (Kind::Float, Device::Cpu));
+        set_seed(42);
+        let x2 = Tensor::randn([2, 3], (Kind::Float, Device::Cpu));
+        assert!(allclose(&x1, &x2, None, None, false).unwrap());
     }
 }
