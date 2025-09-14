@@ -318,4 +318,17 @@ mod tests {
         let n = m.norm(true).double_value(&[]);
         assert!(n.is_finite() && n > 0.0);
     }
+
+    #[test]
+    fn test_two_body_rdm_properties() {
+        let mut m = MPS::random(5, 2, 4, MPSType::Open, Kind::Float, Device::Cpu, false);
+        m.center_orthogonalization(2, "qr", None, true, true);
+        let rdm = m.two_body_reduced_density_matrix(1, 2, true); // [4,4]
+        // Hermitian: rdm == rdm^H
+        let diff = (&rdm - rdm.conj().transpose(0, 1)).abs().sum(rdm.kind()).double_value(&[]);
+        assert!(diff < 1e-8);
+        // Trace equals 1 (normalized)
+        let tr = rdm.trace().real().double_value(&[]);
+        assert!((tr - 1.0).abs() < 1e-6);
+    }
 }
