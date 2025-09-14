@@ -63,31 +63,29 @@
 
 ## Discovered TODOs and Potential Bugs (from side-by-side scan)
 - Eigen Decomposition
-  - Bug: `eigs_power` uses `matrix_exp(H)` and `matrix_exp(H@H)` for LA/LM without the `TAU` factor used in Python. Fix to `matrix_exp(TAU * H)` and `matrix_exp(TAU * (H@H))` respectively; keep `TAU=1e-2`. Add unit tests comparing Rust to Python for small matrices and all four modes (LA/SA/LM/SM).
+  - DONE: `eigs_power` uses `matrix_exp(tau*H)` / `matrix_exp(±tau*H^2)`; residual tests for LA/SA/LM/SM.
 - Hamiltonians
-  - Heisenberg: Python takes `.real` on the `Y⊗Y` term to ensure real-valued Hamiltonian. Our version sums complex terms directly. Align by taking real part or by constructing explicitly-real Y⊗Y; add tests to confirm hermiticity and real-valued output for real couplings.
+  - DONE: Heisenberg uses real(Y⊗Y) to ensure real-valued output for real couplings; test added.
 - GMPS
-  - `eval_nll_selected_features`: currently panics for partial subsets. Implement “matrix-env” path or batched vmap-equivalent; add parity test with Python for random subsets.
-  - Missing: `generate_sample_with_gmps`, `gmps_classify`, and `gmps_classify_with_selected_features` (plus a non-multiprocessing path). These depend on feature mapping and subset NLL.
+  - DONE: `eval_nll_selected_features` implemented (matrix-env path) + degeneracy test.
+  - DONE: `generate_sample_with_gmps`, `gmps_classify`, and `gmps_classify_with_selected_features` (single-process).
 - Tensor Gates
-  - `apply_gate_batched_with_vmap`: currently loops; replace with vectorized contraction/bmm or documented fallback; add tests on correctness and perf notes.
-  - API Parity: Python has `rotate(params_vec|scalars, dtype/device)`; Rust exposes `rotate_from_scalars(f64,...)`. Provide a `rotate(params_vec)` ergonomic wrapper and dtype/device choices.
-  - `kron` variadic vs slice: keep slice API but consider a convenience variadic wrapper for parity.
+  - DONE: `apply_gate_batched_with_vmap` vectorized via named einsum over batch.
+  - DONE: Added `rotate([ita,beta,delta,gamma], ...)` wrapper.
 - Quantum State
-  - `observe_bond_energies`: support single-H input form and mixed list forms as in Python; add tests.
+  - DONE: `observe_bond_energies_single` supports single-H input alongside multi-H variant.
 - MPS
-  - Two-body RDM and orthogonalization: add notebook-derived assertions (shapes, traces=1, hermitian) to catch subtle index order issues.
-  - Save/Load: implement via `safetensors` (map `center` and tensors) to match Python’s `save_to_safetensors`/`load_from_safetensors`.
+  - DONE: Tests for two-body RDM hermiticity and unit trace post-normalization.
+  - TODO: Save/Load via `safetensors` (map `center` and tensors).
 - Kernels / Classifier
-  - Signature parity: Python `metric_matrix_neg_log_cos_sin` uses `calculation_method={deduplicate,no_deduplicate}`; Rust currently takes `dedup: bool`. Mirror the enum-like parameter names for clarity.
-  - Add guardrails against NaNs for large `theta` (match Python checks and error message).
+  - DONE: `metric_matrix_neg_log_cos_sin_method(samples, theta, calculation_method)` and NaN guardrails.
 - TEBD / ITE
-  - TEBD: Python performs gate splitting, center movement, orthogonalization, truncation, and local energy tracking. Rust implementation is a minimal placeholder. Plan: implement gate evolution and sweep loops, expose truncation/max rank, and compute local energies via two-body RDM.
-  - Imaginary time evolution: bring over convergence/`tau`-halving logic and energy printouts (behind a verbosity flag); currently “basic”.
-- Feature Mapping (for algorithms that need it)
-  - Missing: `cossin_feature_map`, `feature_map_to_qubit_state`, `linear_mapping` — needed by GMPS sampling/classifiers and some notebooks. Provide lightweight Rust equivalents in a `feature_mapping` module.
+  - DONE: TEBD sweep implemented with MPO-style long-range gates (gl/gr), center movement, SVD truncation, and local energy tracking.
+  - TODO: ITE convergence controls parity (tau-halving verbosity toggles).
+- Feature Mapping
+  - DONE: `cossin_feature_map`, `feature_map_to_qubit_state`, `linear_mapping` added.
 - Misc
-  - Add small utilities from `utils/tensors.py` when/if needed by notebooks (identity_tensor, zeros_state for complex, normalize/rescale, named contraction helper).
+  - Optional: add `utils/tensors` helpers when needed (identity_tensor, zeros_state, normalize/rescale).
 
 ## API Parity Notes (Rust ↔ Python)
 - Function names that intentionally differ:
@@ -108,13 +106,12 @@
   - TEBD and ITE: evolution norms, basic energy descent on tiny chains; confirm truncation behavior when enabled.
 
 ## Work Items (prioritized checklist)
-- [ ] Fix `eigs_power` TAU handling; add tests for LA/SA/LM/SM.
+- [x] Fix `eigs_power` TAU handling; add tests for LA/SA/LM/SM.
 - [x] Implement `eval_nll_selected_features` (subset) and tests (degenerate=full).
 - [x] Add `feature_mapping` module (`cossin_feature_map`, `feature_map_to_qubit_state`, `linear_mapping`).
 - [x] GMPS sampling and classification (single-process).
-- [ ] Vectorize `apply_gate_batched_with_vmap` or document fallback with benchmarks.
-- [ ] Heisenberg: ensure real-valued output for real couplings (Y⊗Y handling) + tests.
-- [x] TEBD sweep with orthogonalization/truncation + local energies (nearest-neighbor).
-- [x] GMPS sampling and classifiers; optional multiprocessing is out-of-scope for now.
+- [x] Vectorize `apply_gate_batched_with_vmap`.
+- [x] Heisenberg: ensure real-valued output for real couplings + tests.
+- [x] TEBD sweep with orthogonalization/truncation + local energies (incl. long-range via MPO gl/gr).
 - [ ] Persistence API for `MPS` via `safetensors` (save/load center + tensors).
-- [ ] Signature parity updates for kernels and `rotate` convenience wrapper.
+- [x] Signature parity updates for kernels and `rotate` convenience wrapper.
