@@ -44,7 +44,7 @@ pub fn unify_tensor_dtypes(t1: &Tensor, t2: &Tensor) -> (Tensor, Tensor) {
             return (t1.to_kind(d2), t2.to_kind(d2));
         }
     }
-    panic!("Unreachable in unify_tensor_dtypes");
+    unreachable!("Unreachable in unify_tensor_dtypes");
 }
 
 pub fn map_float_kind_to_complex(kind: Kind) -> Kind {
@@ -70,8 +70,7 @@ pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<i64>) -> Tensor 
         t.size().iter().all(|&d| d == 2),
         "Tensor dimensions must be 2"
     );
-    let qubit_count = num_qubit.unwrap_or((ndim / 2) as i64);
-    check_quantum_gate(t, Some(qubit_count), false).expect("invalid gate tensor");
+    let qubit_count = check_quantum_gate(t, num_qubit, true).expect("invalid gate tensor");
     let d = 1_i64 << qubit_count; // 2^q
     t.view([d, d])
 }
@@ -80,13 +79,7 @@ pub fn view_gate_matrix_as_tensor(t: &Tensor, num_qubit: Option<i64>) -> Tensor 
     assert!(t.dim() == 2, "Matrix must have 2 dimensions");
     let sz = t.size();
     assert!(sz[0] == sz[1], "Matrix must be square");
-    let inferred = ((sz[0] as f64).log2().round()) as i64;
-    let qubit_count = num_qubit.unwrap_or(inferred);
-    assert!(
-        sz[0] == (1_i64 << qubit_count),
-        "Matrix size must be (2^q, 2^q)"
-    );
-    check_quantum_gate(t, Some(qubit_count), false).expect("invalid gate matrix");
+    let qubit_count = check_quantum_gate(t, num_qubit, false).expect("invalid gate matrix");
     let dims = vec![2_i64; (qubit_count * 2) as usize];
     t.view(&dims[..])
 }

@@ -1,8 +1,9 @@
+use std::collections::HashSet;
 use tch::{Kind, Tensor};
+use warrant::warrant;
 
 /// Return true if two slices share any element in common.
 pub fn iterable_have_common(a: &[i64], b: &[i64]) -> bool {
-    use std::collections::HashSet;
     let set_a: HashSet<i64> = a.iter().copied().collect();
     b.iter().any(|x| set_a.contains(x))
 }
@@ -10,23 +11,17 @@ pub fn iterable_have_common(a: &[i64], b: &[i64]) -> bool {
 /// Validate a tensor as a quantum state tensor: ndim>0 and every dim equals 2
 /// and dtype is float or complex.
 pub fn check_state_tensor(t: &Tensor) -> Result<(), String> {
-    let kind = t.kind();
-    match kind {
-        Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble => {}
-        _ => return Err("quantum_state must be a float or complex tensor".into()),
-    }
+    warrant!(matches!(t.kind(), Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble), else {
+        return Err("quantum_state must be a float or complex tensor".into());
+    });
     let size = t.size();
     if size.is_empty() {
         return Err("quantum_state must be a tensor with at least one dimension".into());
     }
-    if !size.iter().all(|&d| d == 2) {
+    warrant!(size.iter().all(|&d| d == 2), else {
         return Err("quantum_state must be a tensor with all dimensions of size 2".into());
-    }
+    });
     Ok(())
-}
-
-fn is_power_of_two(x: i64) -> bool {
-    x > 0 && (x & (x - 1)) == 0
 }
 
 /// Validate a quantum gate tensor. Returns the inferred/validated number of qubits.
@@ -35,53 +30,53 @@ pub fn check_quantum_gate(
     num_qubits: Option<i64>,
     assert_tensor_form: bool,
 ) -> Result<i64, String> {
-    let kind = t.kind();
-    match kind {
-        Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble => {}
-        _ => return Err("quantum_gate must be a float or complex tensor".into()),
-    }
+    warrant!(matches!(t.kind(), Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble), else {
+        return Err("quantum_gate must be a float or complex tensor".into());
+    });
     let ndim = t.dim();
-    if ndim < 2 {
+    warrant!(ndim >= 2, else {
         return Err("quantum_gate must be a tensor with at least two dimensions".into());
-    }
-    if ndim % 2 != 0 {
+    });
+    warrant!(ndim % 2 == 0, else {
         return Err("quantum_gate must have an even number of dimensions".into());
-    }
+    });
 
     let sizes = t.size();
     if ndim == 2 {
+        // in matrix form
         let m = sizes[0];
         let n = sizes[1];
+        warrant!(m == n, else {
+            return Err("gate must be a square matrix".into());
+        });
         let nq = if let Some(nq) = num_qubits {
+            warrant!(m == 2_i64.pow(nq as u32), else {
+                return Err(format!("gate must be a square matrix with dimensions 2^num_qubits, got {m}x{m}"));
+            });
             nq
         } else {
-            if !is_power_of_two(m) {
+            let pow = m.ilog2();
+            warrant!(2_i64.pow(pow) == m, else {
                 return Err(format!("matrix dim {} is not 2^k", m));
-            }
-            (m as f64).log2() as i64
+            });
+            pow as i64
         };
-        if m != n || m != 2_i64.pow(nq as u32) {
-            return Err(format!(
-                "gate must be {}x{} square matrix",
-                2_i64.pow(nq as u32),
-                2_i64.pow(nq as u32)
-            ));
-        }
         if assert_tensor_form && nq > 1 {
             return Err("Quantum gate should be in tensor form".into());
         }
         Ok(nq)
     } else {
-        if !sizes.iter().all(|&d| d == 2) {
+        // in tensor form
+        warrant!(sizes.iter().all(|&d| d == 2), else {
             return Err("gate tensor must have all dimensions of size 2".into());
-        }
+        });
         let nq = num_qubits.unwrap_or((ndim / 2) as i64);
-        if ndim as i64 != 2 * nq {
+        warrant!(ndim == 2 * (nq as usize), else {
             return Err(format!(
                 "gate tensor must have 2 * num_qubits dimensions, got {}",
                 ndim
             ));
-        }
+        });
         Ok(nq)
     }
 }

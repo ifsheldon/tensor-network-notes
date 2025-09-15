@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 tch = { version =  "0.21.0", git = "https://github.com/LaurentMazare/tch-rs.git" }
+warrant = "0.2"
