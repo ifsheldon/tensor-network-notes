@@ -101,6 +101,7 @@ mod tests {
         // 2-qubit identity
         let i = Tensor::eye(4, (Kind::Float, Device::Cpu));
         let t = view_gate_matrix_as_tensor(&i, Some(2));
+        assert_eq!(t.size(), vec![2, 2, 2, 2]);
         let m = view_gate_tensor_as_matrix(&t, Some(2));
         assert_eq!(m.size(), vec![4, 4]);
     }
