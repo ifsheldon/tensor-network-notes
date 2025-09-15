@@ -27,8 +27,8 @@ pub fn eigs_power(mat: &Tensor, which: &str, v0: Option<&Tensor>) -> tch::Result
         _ => panic!("which must be one of la/lm/sa/sm"),
     };
 
-    let iter_num = 2000;
-    let tolerance = 1e-14;
+    let iter_num = 8000;
+    let tolerance = 1e-12;
     let mut v = if let Some(v0t) = v0 {
         v0t.shallow_clone()
     } else {
@@ -36,10 +36,8 @@ pub fn eigs_power(mat: &Tensor, which: &str, v0: Option<&Tensor>) -> tch::Result
         &vv / vv.norm()
     };
 
-    let mut norm = 1.0_f64;
     for _ in 0..iter_num {
         let v_next = rho.matmul(&v);
-        norm = v_next.norm().double_value(&[]);
         let v_next_n = &v_next / v_next.norm();
         let diff = (v_next_n.copy() - v.copy()).norm().double_value(&[]);
         v = v_next_n;
@@ -48,17 +46,11 @@ pub fn eigs_power(mat: &Tensor, which: &str, v0: Option<&Tensor>) -> tch::Result
         }
     }
 
-    let scaled = h.matmul(&v);
-    let sign = v.dot(&scaled).sign();
-    let eigenvector = &scaled / scaled.norm();
-    let tau_t = Tensor::from(tau);
-    let eigenvalue = match which.as_str() {
-        "la" => Tensor::from(norm).log() / &tau_t,
-        "sa" => -(Tensor::from(norm).log() / &tau_t),
-        "lm" => sign * (Tensor::from(norm).log() / &tau_t).sqrt(),
-        "sm" => sign * (-(Tensor::from(norm).log() / &tau_t)).sqrt(),
-        _ => unreachable!(),
-    };
+    // Use Rayleigh quotient for a more accurate eigenvalue estimate
+    let v_n = &v / v.norm();
+    let hv = h.matmul(&v_n);
+    let eigenvalue = v_n.dot(&hv);
+    let eigenvector = v_n;
     Ok((eigenvalue, eigenvector))
 }
 

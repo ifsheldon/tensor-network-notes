@@ -541,8 +541,11 @@ mod tests {
     #[test]
     fn test_heisenberg_real_output() {
         let h = heisenberg(1.0, 1.0, 1.0, true, true);
-        // Should be real-valued entries (imag part zero)
-        let imag_sum = h.imag().abs().sum(h.kind()).double_value(&[]);
+        // Should be real-valued entries (imag part zero). If dtype is real, imag is trivially 0.
+        let imag_sum = match h.kind() {
+            Kind::ComplexFloat | Kind::ComplexDouble => h.imag().abs().sum(h.kind()).double_value(&[]),
+            _ => 0.0,
+        };
         assert!(imag_sum < 1e-12);
     }
 }

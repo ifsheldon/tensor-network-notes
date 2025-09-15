@@ -22,16 +22,16 @@ pub fn cossin_feature_map(samples: &Tensor, theta: f64, check_range: bool) -> Te
 pub fn feature_map_to_qubit_state(features: &Tensor) -> Tensor {
     assert!(features.dim() == 3 && features.size()[2] == 2);
     let f = features.size()[1];
-    // split along feature axis and contract via einsum with named dims
+    // split along feature axis and contract via named_einsum with symbolic labels
     let mut parts: Vec<Tensor> = Vec::with_capacity(f as usize);
     for i in 0..f {
         parts.push(features.i((.., i, ..))); // [B,2]
     }
-    // Build equation like "B f0, B f1, ... -> B f0 f1 ..."
+    // Build equation like "B f0, B f1, ... -> B f0 f1 ..." using named_einsum
     let inputs: Vec<String> = (0..f).map(|i| format!("B f{}", i)).collect();
     let outputs: Vec<String> = (0..f).map(|i| format!("f{}", i)).collect();
-    let eq = format!("{}->B {}", inputs.join(","), outputs.join(" "));
-    Tensor::einsum(&eq, &parts, None::<Vec<i64>>)
+    let eq = format!("{} -> B {}", inputs.join(","), outputs.join(" "));
+    crate::utils::einsum::named_einsum(&eq, &parts)
 }
 
 pub fn linear_mapping(samples: &Tensor) -> Tensor {

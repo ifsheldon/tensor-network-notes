@@ -249,32 +249,15 @@ impl MPS {
         return_matrix: bool,
     ) -> Tensor {
         assert!(idx0 < idx1 && idx1 < self.length);
-        // Place center at idx0 and normalize
-        self.center_orthogonalization(idx0 as isize, "qr", None, true, true);
-        // Start with left site contribution: product dims [p0c p0, r*r]
-        let t_left = &self.mps[idx0];
-        let mut product = Tensor::einsum(
-            "l pc r, l p r -> pc p r r2",
-            &[t_left.conj(), t_left.shallow_clone()],
-            None::<Vec<i64>>,
-        );
-        // Fold through middle cores
-        for k in (idx0 + 1)..idx1 {
-            let tk = &self.mps[k];
-            product = Tensor::einsum(
-                "a b x y, x pc y, x p y -> a b pc p",
-                &[product, tk.conj(), tk.shallow_clone()],
-                None::<Vec<i64>>,
-            );
+        // Simpler and reliable: build the global state and reduce
+        let state = self.global_tensor(); // [2,2,...,2]
+        let keep = vec![idx0 as i64, idx1 as i64];
+        let rdm = crate::quantum_state::functional::calc_reduced_density_matrix(&state, keep);
+        if return_matrix {
+            rdm
+        } else {
+            rdm.reshape([2, 2, 2, 2])
         }
-        // Right site
-        let t_right = &self.mps[idx1];
-        let rdm = Tensor::einsum(
-            "i0c i0 lr, l i1c r, l i1 r -> i0 i1 i0c i1c",
-            &[product, t_right.conj(), t_right.shallow_clone()],
-            None::<Vec<i64>>,
-        );
-        if return_matrix { rdm.view([4, 4]) } else { rdm }
     }
 
     pub fn entanglement_entropy_onsite_(

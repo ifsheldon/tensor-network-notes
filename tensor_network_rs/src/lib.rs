@@ -55,7 +55,8 @@ mod tests {
         let length = 3;
         let phys = 2;
         let virt = 2;
-        let m = MPS::random(length, phys, virt, MPSType::Open, k, dev, false);
+        let mut m = MPS::random(length, phys, virt, MPSType::Open, k, dev, false);
+        m.center_orthogonalization(0, "qr", None, true, true);
         let samples = Tensor::rand([5, length, phys], (k, dev));
         let full = crate::algorithms::gmps::eval_nll(&samples, &m, false);
         let idx: Vec<i64> = (0..length).collect();

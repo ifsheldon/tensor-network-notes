@@ -25,7 +25,7 @@ pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<i64>) -> Tenso
     let k = keep_sorted.len() as i64;
     let d_keep = 1_i64 << k;
     let d_red = 1_i64 << (num_qubits - k);
-    let s2 = s.view([d_keep, d_red]);
+    let s2 = s.reshape([d_keep, d_red]);
     // ρ = S S^†
     let s_h = s2.conj().transpose(0, 1);
     s2.matmul(&s_h)
