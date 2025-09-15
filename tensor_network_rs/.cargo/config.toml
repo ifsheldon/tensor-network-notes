@@ -1,7 +1,7 @@
 [env]
 LIBTORCH = { value = "../.venv/lib/python3.12/site-packages/torch" , relative = true }
 # on macOS
-#DYLD_LIBRARY_PATH  = { value = ".venv/lib/python3.12/site-packages/torch/lib" , relative = true }
+DYLD_LIBRARY_PATH  = { value = "../.venv/lib/python3.12/site-packages/torch/lib" , relative = true }
 # on Linux
 LD_LIBRARY_PATH  = { value = "../.venv/lib/python3.12/site-packages/torch/lib" , relative = true, force = true }
 
