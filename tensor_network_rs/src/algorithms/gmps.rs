@@ -150,22 +150,21 @@ pub fn eval_nll_selected_features(
     // env tensors as [batch, L, R] where L/R dims vary along sweep
     let mut env_left = Tensor::ones([dataset, 1, 1], (k, dev));
     let mut env_right = Tensor::ones([dataset, 1, 1], (k, dev));
-    let mut norms = Tensor::ones([dataset, feature_num as i64], (k, dev));
+    let norms = Tensor::ones([dataset, feature_num as i64], (k, dev));
 
     let in_subset = |i: usize| set.contains(&i);
     let sample_at = |idx: usize| samples.i((.., idx as i64, ..));
 
     // left to center-1
-    for i in 0..center {
+    for (i, _t) in locals.iter().enumerate().take(center) {
         let lt = &locals[i]; // [l,p,r]
         env_left = if in_subset(i) {
             // selected: contract with sample -> [b,l,r]
-            let tmp = Tensor::einsum(
+            Tensor::einsum(
                 "l p r, b p -> b l r",
                 &[lt.shallow_clone(), sample_at(i)],
                 None::<Vec<i64>>,
-            );
-            tmp
+            )
         } else {
             // unselected: transfer env: E = A^† E A -> [b, r*, r]
             Tensor::einsum(
@@ -188,13 +187,12 @@ pub fn eval_nll_selected_features(
         let ui = i as usize;
         let rt = &locals[ui];
         env_right = if in_subset(ui) {
-            let tmp = Tensor::einsum(
+            // map to [b, l, r] then contract as right-env build requires later
+            Tensor::einsum(
                 "l p r, b p -> b l r",
                 &[rt.shallow_clone(), sample_at(ui)],
                 None::<Vec<i64>>,
-            );
-            // map to [b, l, r] then contract as right-env build requires later
-            tmp
+            )
         } else {
             Tensor::einsum(
                 "lC p rC, b rC r, l p r -> b lC l",
@@ -390,11 +388,11 @@ pub fn train_gmps(
 /// and generates only on `gen_indices`. Returns the average over `sample_num` draws as a length-L float tensor in [0,1].
 pub fn generate_sample_with_gmps(
     mps: &MPS,
-    sample: Option<&Tensor>,            // [L] or [1,L] with values in [0,1] for feature mapping
+    sample: Option<&Tensor>, // [L] or [1,L] with values in [0,1] for feature mapping
     sample_num: i64,
     gen_indices: Option<&[i64]>,
-    gen_order: &str,                    // "ascending" | "descending"
-    feature_mapping: &str,              // currently only "cossin"
+    gen_order: &str,       // "ascending" | "descending"
+    feature_mapping: &str, // currently only "cossin"
     theta: f64,
 ) -> Tensor {
     assert!(sample_num > 0);
@@ -411,45 +409,71 @@ pub fn generate_sample_with_gmps(
     } else {
         assert!(gen_order == "ascending");
     }
-    assert!(feature_mapping == "cossin", "only cossin mapping is supported for now");
+    assert!(
+        feature_mapping == "cossin",
+        "only cossin mapping is supported for now"
+    );
 
     // Prepare projected MPS if partial info is provided
-    let mut base_mps: MPS;
-    let mut remaining_positions: Vec<i64>;
-    if let Some(s) = sample {
-        let s = if s.dim() == 2 { s.squeeze_dim(0) } else { s.shallow_clone() };
+    let (base_mps, remaining_positions) = if let Some(s) = sample {
+        let s = if s.dim() == 2 {
+            s.squeeze_dim(0)
+        } else {
+            s.shallow_clone()
+        };
         assert_eq!(s.dim(), 1);
         assert_eq!(s.size()[0], length);
         // project indices = all \ gen_list
         let mut project_idx: Vec<i64> = (0..length).collect();
-        for &g in &gen_list { project_idx.retain(|&x| x != g); }
+        for &g in &gen_list {
+            project_idx.retain(|&x| x != g);
+        }
         if project_idx.is_empty() {
-            base_mps = MPS::from_tensors(mps.local_tensors().to_vec(), Some(false));
-            remaining_positions = gen_list.clone();
+            let cloned: Vec<Tensor> = mps
+                .local_tensors()
+                .iter()
+                .map(|t| t.shallow_clone())
+                .collect();
+            (MPS::from_tensors(cloned, Some(false)), gen_list.clone())
         } else {
             // feature mapping for projection positions
             let mut vals: Vec<Tensor> = Vec::with_capacity(project_idx.len());
-            for &pi in &project_idx { vals.push(s.i(pi)); }
+            for &pi in &project_idx {
+                vals.push(s.i(pi));
+            }
             let proj_vec = Tensor::stack(&vals, 0).to_kind(k).to_device(dev); // [P]
-            let feats = crate::feature_mapping::cossin_feature_map(&proj_vec.unsqueeze(0), theta, false)
-                .squeeze_dim(0); // [P,2]
-            base_mps = mps.project_multi_qubits_vec(&project_idx, &feats);
+            let feats =
+                crate::feature_mapping::cossin_feature_map(&proj_vec.unsqueeze(0), theta, false)
+                    .squeeze_dim(0); // [P,2]
+            let base = mps.project_multi_qubits_vec(&project_idx, &feats);
             // remaining positions are exactly gen_list in original order, map them to new indices [0..L-P)
             // After projection, the remaining sites preserve relative order; new index = position within the sorted remaining set
             let mut rem: Vec<i64> = (0..length).collect();
-            for &pi in &project_idx { rem.retain(|&x| x != pi); }
-            remaining_positions = rem;
+            for &pi in &project_idx {
+                rem.retain(|&x| x != pi);
+            }
+            let remaining_positions = rem;
             // rem maps new index -> original index
             // gen_list refers to original indices; ensure all are in rem
-            for &g in &gen_list { assert!(remaining_positions.contains(&g)); }
+            for &g in &gen_list {
+                assert!(remaining_positions.contains(&g));
+            }
+            (base, remaining_positions)
         }
     } else {
-        base_mps = MPS::from_tensors(mps.local_tensors().to_vec(), Some(false));
-        remaining_positions = (0..length).collect();
-    }
+        let cloned: Vec<Tensor> = mps
+            .local_tensors()
+            .iter()
+            .map(|t| t.shallow_clone())
+            .collect();
+        (
+            MPS::from_tensors(cloned, Some(false)),
+            (0..length).collect(),
+        )
+    };
 
     // Map original gen indices to new indices in the (possibly) projected MPS
-    let mut gen_new: Vec<i64> = gen_list
+    let gen_new: Vec<i64> = gen_list
         .iter()
         .map(|&g| remaining_positions.iter().position(|&x| x == g).unwrap() as i64)
         .collect();
@@ -457,14 +481,22 @@ pub fn generate_sample_with_gmps(
     // accumulator over runs
     let mut acc = Tensor::zeros([length], (Kind::Float, tch::Device::Cpu));
     for _ in 0..sample_num {
-        let mut mps_i = MPS::from_tensors(base_mps.local_tensors().to_vec(), Some(false));
+        let cloned: Vec<Tensor> = base_mps
+            .local_tensors()
+            .iter()
+            .map(|t| t.shallow_clone())
+            .collect();
+        let mut mps_i = MPS::from_tensors(cloned, Some(false));
         let mut rem_i = remaining_positions.clone();
         let mut gen_i = gen_new.clone();
-        let mut out = if let Some(s) = sample { s.to_device(tch::Device::Cpu).to_kind(Kind::Float) } else { Tensor::zeros([length], (Kind::Float, tch::Device::Cpu)) };
-        let mut pos = 0;
+        let out = if let Some(s) = sample {
+            s.to_device(tch::Device::Cpu).to_kind(Kind::Float)
+        } else {
+            Tensor::zeros([length], (Kind::Float, tch::Device::Cpu))
+        };
         while !gen_i.is_empty() {
             let gen_idx = gen_i[0] as usize; // index in current MPS
-            let gen_orig = rem_i[gen_idx as usize] as i64; // original position
+            let gen_orig = rem_i[gen_idx]; // original position
             mps_i.center_orthogonalization(gen_idx as isize, "qr", None, true, true);
             let rdm = mps_i.one_body_reduced_density_matrix(gen_idx, true, true);
             let p1 = rdm.double_value(&[1, 1]);
@@ -475,12 +507,21 @@ pub fn generate_sample_with_gmps(
             // project site and update indices
             let new_mps = mps_i.project_multi_qubits_indices(&[gen_idx as i64], &[state]);
             mps_i = new_mps;
-            mps_i.center_orthogonalization((gen_idx as isize).saturating_sub(1), "qr", None, true, true);
+            mps_i.center_orthogonalization(
+                (gen_idx as isize).saturating_sub(1),
+                "qr",
+                None,
+                true,
+                true,
+            );
             // remove this position from remaining positions and update mapping
             rem_i.remove(gen_idx);
             gen_i.remove(0);
-            for g in &mut gen_i { if (*g as usize) > gen_idx { *g -= 1; } }
-            pos += 1;
+            for g in &mut gen_i {
+                if (*g as usize) > gen_idx {
+                    *g -= 1;
+                }
+            }
         }
         acc += &out;
     }
@@ -499,7 +540,11 @@ pub fn gmps_classify(samples: &Tensor, gmpss: &[MPS]) -> Tensor {
 }
 
 /// Classify using only a subset of features.
-pub fn gmps_classify_with_selected_features(samples: &Tensor, gmpss: &[MPS], indices: &[i64]) -> Tensor {
+pub fn gmps_classify_with_selected_features(
+    samples: &Tensor,
+    gmpss: &[MPS],
+    indices: &[i64],
+) -> Tensor {
     assert!(samples.dim() == 3);
     let mut nlls: Vec<Tensor> = Vec::with_capacity(gmpss.len());
     for g in gmpss {

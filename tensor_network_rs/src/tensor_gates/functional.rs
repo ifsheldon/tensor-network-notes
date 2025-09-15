@@ -133,7 +133,8 @@ pub fn heisenberg(
         "ab, ij -> aibj",
         &[py.shallow_clone(), py],
         None::<Vec<i64>>,
-    ).real(); // ensure real-valued contribution for real couplings
+    )
+    .real(); // ensure real-valued contribution for real couplings
     let zz = Tensor::einsum(
         "ab, ij -> aibj",
         &[pz.shallow_clone(), pz],
@@ -351,7 +352,8 @@ pub fn apply_gate_batched_with_vmap(
     target_qubit: Vec<i64>,
     control_qubit: Option<Vec<i64>>,
 ) -> Tensor {
-    super::super::utils::checking::check_state_tensor(&quantum_states.i(0)).expect("invalid state batch");
+    super::super::utils::checking::check_state_tensor(&quantum_states.i(0))
+        .expect("invalid state batch");
     let mut control_qubit = control_qubit.unwrap_or_default();
     let mut target_qubit = target_qubit;
     let num_qubits = quantum_states.dim() as i64 - 1;
@@ -364,8 +366,12 @@ pub fn apply_gate_batched_with_vmap(
     target_qubit.sort_unstable();
     control_qubit.sort_unstable();
     let mut other: Vec<i64> = (0..num_qubits).collect();
-    for &q in &target_qubit { other.retain(|&x| x != q); }
-    for &q in &control_qubit { other.retain(|&x| x != q); }
+    for &q in &target_qubit {
+        other.retain(|&x| x != q);
+    }
+    for &q in &control_qubit {
+        other.retain(|&x| x != q);
+    }
 
     // Move batch to last dim for easier contraction
     let s = quantum_states.movedim(0, -1); // [2,...,2,B]
@@ -385,18 +391,26 @@ pub fn apply_gate_batched_with_vmap(
     let gate_t = if gate.dim() == 2 {
         let dims = vec![2_i64; (2 * num_target) as usize];
         gate.view(&dims[..])
-    } else { gate.shallow_clone() };
+    } else {
+        gate.shallow_clone()
+    };
 
     // Flatten state into [2^t, 2^o, 2^c, B]
     let s_flat = s_perm.view([d_t, d_o, d_c, b]);
     // unaffected part (controls != all ones): [:, :, 0..d_c-1, :]
-    let unaffected = if d_c > 1 { s_flat.i((.., .., 0..(d_c-1), ..)) } else { Tensor::zeros([d_t, d_o, 0, b], (s.kind(), s.device())) };
+    let unaffected = if d_c > 1 {
+        s_flat.i((.., .., 0..(d_c - 1), ..))
+    } else {
+        Tensor::zeros([d_t, d_o, 0, b], (s.kind(), s.device()))
+    };
     // slice for last control state
     let last = s_flat.i((.., .., d_c - 1, ..)); // [2^t, 2^o, B]
     // Use named_einsum to contract gate on target dims, preserving [o, B]
     let g_names: Vec<String> = (0..num_target).map(|i| format!("g{}", i)).collect();
     let t_names: Vec<String> = (0..num_target).map(|i| format!("t{}", i)).collect();
-    let o_names: Vec<String> = (0..(other.len() as i64)).map(|i| format!("o{}", i)).collect();
+    let o_names: Vec<String> = (0..(other.len() as i64))
+        .map(|i| format!("o{}", i))
+        .collect();
     let spec = format!(
         "{} {}, {} {} B -> {} {} B",
         g_names.join(" "),
@@ -408,14 +422,20 @@ pub fn apply_gate_batched_with_vmap(
     );
     let last_new = crate::utils::einsum::named_einsum(&spec, &[gate_t, last]); // [2^t, 2^o, B]
     let last_new_exp = last_new.unsqueeze(2); // [2^t, 2^o, 1, B]
-    let merged = if d_c > 1 { Tensor::cat(&[unaffected, last_new_exp], 2) } else { last_new_exp };
+    let merged = if d_c > 1 {
+        Tensor::cat(&[unaffected, last_new_exp], 2)
+    } else {
+        last_new_exp
+    };
     // Reshape back to original permuted shape and invert permutation
     let out_perm = merged.view([d_t, d_o, d_c, b]);
     let mut out_shape = vec![2_i64; (num_target + (other.len() as i64) + num_control) as usize];
     out_shape.push(b);
     let out_tensor = out_perm.view(&out_shape[..]).view(&shape[..]);
     let mut inv = vec![0_i64; perm.len()];
-    for (i, &p) in perm.iter().enumerate() { inv[p as usize] = i as i64; }
+    for (i, &p) in perm.iter().enumerate() {
+        inv[p as usize] = i as i64;
+    }
     let out = out_tensor.permute(&inv);
     // Move batch back to dim 0
     out.movedim(-1, 0)

@@ -325,7 +325,10 @@ mod tests {
         m.center_orthogonalization(2, "qr", None, true, true);
         let rdm = m.two_body_reduced_density_matrix(1, 2, true); // [4,4]
         // Hermitian: rdm == rdm^H
-        let diff = (&rdm - rdm.conj().transpose(0, 1)).abs().sum(rdm.kind()).double_value(&[]);
+        let diff = (&rdm - rdm.conj().transpose(0, 1))
+            .abs()
+            .sum(rdm.kind())
+            .double_value(&[]);
         assert!(diff < 1e-8);
         // Trace equals 1 (normalized)
         let tr = rdm.trace().real().double_value(&[]);

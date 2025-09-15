@@ -19,7 +19,10 @@ pub fn metric_matrix_neg_log_cos_sin(samples: &Tensor, theta: f64, dedup: bool) 
             let others = samples.i((i + 1)..);
             let diff = &a - &others;
             let distances = (-(diff * theta).cos().log()).mean_dim(-1, false, samples.kind());
-            assert!(distances.isnan().any().int64_value(&[]) == 0, "nan in distances; try reducing theta");
+            assert!(
+                distances.isnan().any().int64_value(&[]) == 0,
+                "nan in distances; try reducing theta"
+            );
             metric.i((i, (i + 1)..)).copy_(&distances);
             metric.i((((i + 1)..), i)).copy_(&distances);
         }
@@ -29,7 +32,10 @@ pub fn metric_matrix_neg_log_cos_sin(samples: &Tensor, theta: f64, dedup: bool) 
         let b = samples.unsqueeze(1);
         let diff = &a - &b;
         let m = (-(diff * theta).cos().log()).mean_dim(-1, false, samples.kind());
-        assert!(m.isnan().any().int64_value(&[]) == 0, "nan in metric; try reducing theta");
+        assert!(
+            m.isnan().any().int64_value(&[]) == 0,
+            "nan in metric; try reducing theta"
+        );
         for i in 0..n {
             let _ = m.i((i, i)).fill_(0.0);
         }
@@ -37,7 +43,11 @@ pub fn metric_matrix_neg_log_cos_sin(samples: &Tensor, theta: f64, dedup: bool) 
     }
 }
 
-pub fn metric_matrix_neg_log_cos_sin_method(samples: &Tensor, theta: f64, calculation_method: &str) -> Tensor {
+pub fn metric_matrix_neg_log_cos_sin_method(
+    samples: &Tensor,
+    theta: f64,
+    calculation_method: &str,
+) -> Tensor {
     match calculation_method {
         "deduplicate" => metric_matrix_neg_log_cos_sin(samples, theta, true),
         "no_deduplicate" => metric_matrix_neg_log_cos_sin(samples, theta, false),
@@ -64,7 +74,10 @@ pub fn metric_neg_log_cos_sin(
         let batch = samples.i(start..end).unsqueeze(1);
         let diff = &batch - &refs_u;
         let res = (-(diff * theta).cos().log()).mean_dim(-1, false, samples.kind());
-        assert!(res.isnan().any().int64_value(&[]) == 0, "nan in metric; try reducing theta");
+        assert!(
+            res.isnan().any().int64_value(&[]) == 0,
+            "nan in metric; try reducing theta"
+        );
         out.push(res);
         start = end;
     }
@@ -111,7 +124,10 @@ pub fn metric_neg_cossin_chebyshev(
         let batch = samples.i(start..end).unsqueeze(1);
         let diff = &batch - &refs_u;
         let mut res = (-(diff * theta).cos().log()).mean_dim(-1, false, samples.kind());
-        assert!(res.isnan().any().int64_value(&[]) == 0, "nan in metric; try reducing theta");
+        assert!(
+            res.isnan().any().int64_value(&[]) == 0,
+            "nan in metric; try reducing theta"
+        );
         res = res.min_dim(-1, false).0;
         out.push(res);
         start = end;

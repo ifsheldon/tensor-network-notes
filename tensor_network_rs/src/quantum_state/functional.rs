@@ -142,7 +142,12 @@ pub fn observe_bond_energies_single(
     check_quantum_gate(hamiltonian, None, true).expect("invalid hamiltonian tensor form");
     let mut vals: Vec<Tensor> = Vec::with_capacity(interaction_positions.len());
     for pos in interaction_positions {
-        vals.push(calc_observation(quantum_state, hamiltonian, pos.clone(), true));
+        vals.push(calc_observation(
+            quantum_state,
+            hamiltonian,
+            pos.clone(),
+            true,
+        ));
     }
     Tensor::stack(&vals, 0)
 }
