@@ -65,7 +65,7 @@
 - Eigen Decomposition
   - DONE: `eigs_power` uses `matrix_exp(tau*H)` / `matrix_exp(±tau*H^2)`; residual tests for LA/SA/LM/SM.
 - Hamiltonians
-  - DONE: Heisenberg uses real(Y⊗Y) to ensure real-valued output for real couplings; test added.
+  - DONE: Heisenberg uses real X/Z and complex Y with real(Y⊗Y) to ensure real-valued output; test added.
 - GMPS
   - DONE: `eval_nll_selected_features` implemented (matrix-env path) + degeneracy test.
   - DONE: `generate_sample_with_gmps`, `gmps_classify`, and `gmps_classify_with_selected_features` (single-process).
