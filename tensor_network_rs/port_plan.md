@@ -4,7 +4,7 @@
 - Port Python modules in `tensor_network/` to Rust under `tensor_network_rs/` with functional parity for core notebook paths.
 - Validate each module with unit tests derived from notebooks; keep clippy clean and formatting consistent.
 
-## Current Status (2025-09-14)
+## Current Status (2025-09-15)
 - Completed
   - `src/constants.rs` with PyTorch-like tolerances (`RTOL_DEFAULT=1e-5`, `ATOL_DEFAULT=1e-8`).
   - `src/utils/` including `allclose`, `set_seed`, dtype/device helpers, and `utils/einsum.rs` with `named_einsum`.
@@ -16,9 +16,8 @@
 - Sanity tests across modules; crate builds and tests run locally.
 
 - Remaining / In Progress
-  - `gmps::eval_nll_selected_features` for partial subsets (matrix-env path) — implement and test.
-  - Vectorize `apply_gate_batched(_with_vmap)` (replace loop with batched contraction/bmm if practical).
   - Save/load for Rust types (e.g., `safetensors` or custom serde) — design and implement.
+  - ITE parity options (tau-halving verbosity toggles / logging).
   - Expand test coverage: GMPS training assertions, kernel metrics edge cases, TEBD scenarios, complex gates rigor.
   - Performance passes and allocation reductions on hot einsum paths.
 
@@ -52,6 +51,17 @@
 ## Validation
 - Commands: `cargo check` → `cargo clippy --all-targets -- -D warnings` → `cargo fmt` → `cargo test`.
 - Tests use small, deterministic cases; prefer fixed seeds. Use `RTOL_DEFAULT/ATOL_DEFAULT` for comparisons.
+
+## Build & Environment
+- Libtorch via Python (recommended during development):
+  - Environment variables required for building and running:
+    - `LIBTORCH` → path to your Python’s torch install, e.g. `../.venv/lib/python3.12/site-packages/torch`.
+    - `LD_LIBRARY_PATH` → `${LIBTORCH}/lib`.
+  - The file `tensor_network_rs/.cargo/config.toml` sets both with `relative = true` and bakes an rpath on Linux so binaries run without extra env setup.
+  - Example shell usage from repo root:
+    - `export LIBTORCH=$(realpath .venv/lib/python3.12/site-packages/torch)`
+    - `export LD_LIBRARY_PATH=$(realpath .venv/lib/python3.12/site-packages/torch/lib):$LD_LIBRARY_PATH`
+    - `cargo clippy --manifest-path tensor_network_rs/Cargo.toml --all-targets -- -D warnings`
 
 ## Conventions
 - Layout mirrors Python modules (e.g., `mps/functional.rs`). Public API names follow Python where sensible.
