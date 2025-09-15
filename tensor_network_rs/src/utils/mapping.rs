@@ -2,12 +2,13 @@ use crate::utils::checking::check_quantum_gate;
 use tch::{Kind, Tensor};
 
 pub fn inverse_permutation(p: &[i64]) -> Vec<i64> {
-    let n = p.len();
-    let mut inv = vec![0_i64; n];
-    for (i, &pi) in p.iter().enumerate() {
-        inv[pi as usize] = i as i64;
-    }
-    inv
+    let permutation = Tensor::from_slice(p);
+    let mut inv = Tensor::empty_like(&permutation);
+    let arange = Tensor::arange(
+        permutation.size1().unwrap(),
+        (permutation.kind(), permutation.device()),
+    );
+    inv.scatter_(0, &permutation, &arange).try_into().unwrap()
 }
 
 pub fn unify_tensor_dtypes(t1: &Tensor, t2: &Tensor) -> (Tensor, Tensor) {
