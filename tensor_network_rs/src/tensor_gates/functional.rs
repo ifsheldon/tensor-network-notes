@@ -60,12 +60,10 @@ pub fn pauli_operator(pauli: &str, double_precision: bool, force_complex: bool) 
         kind = map_float_kind_to_complex(kind);
     }
     match pauli {
-        "X" => Tensor::f_from_slice(&[0.0, 1.0, 1.0, 0.0])
-            .unwrap()
+        "X" => Tensor::from_slice(&[0.0, 1.0, 1.0, 0.0])
             .to_kind(kind)
             .view([2, 2]),
-        "Z" => Tensor::f_from_slice(&[1.0, 0.0, 0.0, -1.0])
-            .unwrap()
+        "Z" => Tensor::from_slice(&[1.0, 0.0, 0.0, -1.0])
             .to_kind(kind)
             .view([2, 2]),
         "ID" => Tensor::eye(2, (kind, Device::Cpu)),
@@ -79,7 +77,7 @@ pub fn pauli_operator(pauli: &str, double_precision: bool, force_complex: bool) 
             // re = [[0,0],[0,0]], im = [[0,-1],[1,0]]
             let re = [0.0, 0.0, 0.0, 0.0];
             let im = [0.0, -1.0, 1.0, 0.0];
-            crate::utils::complex_from_slices(&re, &im, &[2, 2], k_complex)
+            complex_from_slices(&re, &im, &[2, 2], k_complex)
         }
         _ => panic!("pauli must be one of X, Y, Z, ID"),
     }
@@ -95,10 +93,8 @@ pub fn identity_gate_tensor(num_qubits: Num, matrix_form: bool, kind: Option<Kin
     if matrix_form {
         Tensor::eye(d, (k, Device::Cpu))
     } else {
-        {
-            let dims = vec![2_i64; (2 * num_qubits) as usize];
-            Tensor::eye(d, (k, Device::Cpu)).view(&dims[..])
-        }
+        let dims = vec![2_i64; (2 * num_qubits) as usize];
+        Tensor::eye(d, (k, Device::Cpu)).view(&dims[..])
     }
 }
 
@@ -152,8 +148,7 @@ pub fn rotate_from_scalars(
     };
 
     // Coefficient matrices (complex dtype but purely real values)
-    let beta_coeff = Tensor::f_from_slice(&[-0.5, -0.5, 0.5, 0.5])
-        .unwrap()
+    let beta_coeff = Tensor::from_slice(&[-0.5, -0.5, 0.5, 0.5])
         .to_kind(k_real)
         .view([2, 2])
         .to_kind(k_complex);
@@ -173,8 +168,7 @@ pub fn rotate_from_scalars(
     let x = pauli_operator("X", double_precision, true);
     let gamma_mat = eye * gamma_2.cos().to_kind(k_complex) + x * gamma_2.sin().to_kind(k_complex);
 
-    let coefficient = Tensor::f_from_slice(&[1.0, -1.0, 1.0, 1.0])
-        .unwrap()
+    let coefficient = Tensor::from_slice(&[1.0, -1.0, 1.0, 1.0])
         .to_kind(k_real)
         .view([2, 2])
         .to_kind(k_complex);
@@ -183,7 +177,7 @@ pub fn rotate_from_scalars(
     let phase = ita_t + beta_mat.real() + delta_mat.real();
     let phase_cos = phase.cos().to_kind(k_real).to_kind(k_complex);
     let phase_sin = phase.sin().to_kind(k_real);
-    let exp_i_phase = Tensor::f_complex(&phase_cos.to_kind(k_real), &phase_sin).unwrap();
+    let exp_i_phase = Tensor::complex(&phase_cos.to_kind(k_real), &phase_sin);
     coefficient * exp_i_phase * gamma_mat
 }
 
@@ -473,21 +467,17 @@ mod tests {
 
     #[test]
     fn test_kron_basic() {
-        let a = Tensor::f_from_slice(&[1.0, 2.0, 3.0, 4.0])
-            .unwrap()
-            .view([2, 2]);
-        let b = Tensor::f_from_slice(&[0.0, 5.0, 6.0, 7.0])
-            .unwrap()
-            .view([2, 2]);
+        let a = Tensor::from_slice(&[1.0, 2.0, 3.0, 4.0]).view([2, 2]);
+        let b = Tensor::from_slice(&[0.0, 5.0, 6.0, 7.0]).view([2, 2]);
         let k = kron(&[a, b]);
         assert_eq!(k.size(), vec![4, 4]);
     }
 
     #[test]
     fn test_gate_outer_product_shapes() {
-        let v1 = Tensor::f_from_slice(&[1.0, 2.0]).unwrap();
-        let v2 = Tensor::f_from_slice(&[3.0, 4.0, 5.0]).unwrap();
-        let v3 = Tensor::f_from_slice(&[6.0]).unwrap();
+        let v1 = Tensor::from_slice(&[1.0, 2.0]);
+        let v2 = Tensor::from_slice(&[3.0, 4.0, 5.0]);
+        let v3 = Tensor::from_slice(&[6.0]);
         let t = gate_outer_product(&[v1, v2, v3]);
         assert_eq!(t.size(), vec![2, 3, 1]);
         // check a value: t[1,2,0] == 2 * 5 * 6
@@ -500,9 +490,7 @@ mod tests {
         let x = pauli_operator("X", false, false);
         let u = get_control_gate_tensor(1, &x, true);
         // On |11> acts as X, otherwise identity
-        let v = Tensor::f_from_slice(&[1.0, 0.0, 0.0, 1.0])
-            .unwrap()
-            .view([2, 2]);
+        let v = Tensor::from_slice(&[1.0, 0.0, 0.0, 1.0]).view([2, 2]);
         // check diagonal ones at top-left 2x2
         assert!(u.i((0..2, 0..2)).eq_tensor(&v).all().int64_value(&[]) != 0);
     }

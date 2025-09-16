@@ -83,7 +83,7 @@ pub fn lazy_classify(
         .into_iter()
         .map(|ix| classes[ix as usize].to_tint())
         .collect();
-    Tensor::f_from_slice(&mapped).unwrap().to_kind(Kind::Int64)
+    Tensor::from_slice(&mapped).to_kind(Kind::Int64)
 }
 
 #[cfg(test)]
@@ -96,14 +96,12 @@ mod tests {
         // Two clusters in 2D: class 0 near (0,0), class 1 near (1,1)
         let dev = Device::Cpu;
         let k = Kind::Float;
-        let refs = Tensor::f_from_slice(&[0.0, 0.0, 1.0, 1.0])
-            .unwrap()
+        let refs = Tensor::from_slice(&[0.0, 0.0, 1.0, 1.0])
             .view([2, 2])
             .to_kind(k)
             .to_device(dev);
-        let labels = Tensor::f_from_slice(&[0, 1]).unwrap().to_kind(Kind::Int64);
-        let samples = Tensor::f_from_slice(&[0.05, 0.0, 0.9, 0.95, 0.1, 0.2, 0.8, 1.0])
-            .unwrap()
+        let labels = Tensor::from_slice(&[0, 1]).to_kind(Kind::Int64);
+        let samples = Tensor::from_slice(&[0.05, 0.0, 0.9, 0.95, 0.1, 0.2, 0.8, 1.0])
             .view([4, 2])
             .to_kind(k);
         let pred = lazy_classify(&samples, &refs, &labels, KernelKind::Euclidean);

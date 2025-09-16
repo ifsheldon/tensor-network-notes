@@ -83,8 +83,8 @@ mod tests {
 
     #[test]
     fn test_named_einsum_dot() {
-        let a = Tensor::f_from_slice(&[1.0, 2.0, 3.0]).unwrap();
-        let b = Tensor::f_from_slice(&[4.0, 5.0, 6.0]).unwrap();
+        let a = Tensor::from_slice(&[1.0, 2.0, 3.0]);
+        let b = Tensor::from_slice(&[4.0, 5.0, 6.0]);
         let s = named_einsum("i, i ->", &[a, b]);
         let val = s.double_value(&[]);
         assert!((val - (1.0 * 4.0 + 2.0 * 5.0 + 3.0 * 6.0)).abs() < 1e-12);

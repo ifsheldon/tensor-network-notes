@@ -75,6 +75,6 @@ mod tests {
     #[should_panic]
     fn test_num_cast() {
         let a = -1;
-        let b: Num = a.cast();
+        let _b: Num = a.cast();
     }
 }

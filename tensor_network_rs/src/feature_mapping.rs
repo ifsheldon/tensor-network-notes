@@ -66,8 +66,7 @@ mod tests {
     use tch::Kind;
     #[test]
     fn test_cossin_shapes() {
-        let s = Tensor::f_from_slice(&[0.0, 0.5, 1.0])
-            .unwrap()
+        let s = Tensor::from_slice(&[0.0, 0.5, 1.0])
             .to_kind(Kind::Float)
             .view([1, 3]);
         let f = cossin_feature_map(&s, 1.0, true);

@@ -315,7 +315,7 @@ impl MPS {
             let disc = ((a - b) * (a - b) + 4.0 * c_abs2).sqrt();
             let l1 = (a + b + disc) * 0.5;
             let l2 = (a + b - disc) * 0.5;
-            let l = Tensor::f_from_slice(&[l1, l2]).unwrap();
+            let l = Tensor::from_slice(&[l1, l2]);
             let e = -(l.copy() * (l.copy() + eps).log()).sum(l.kind());
             ents.push(e);
         }

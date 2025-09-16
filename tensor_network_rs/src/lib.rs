@@ -27,18 +27,30 @@ mod tests {
 
     #[test]
     fn test_allclose_basic() {
-        let a = Tensor::f_from_slice(&[1.0_f64, 2.0, 3.0]).unwrap();
+        let a = Tensor::from_slice(&[1.0_f64, 2.0, 3.0]);
         let b = &a + 1e-7;
-        assert!(allclose(&a, &b, None, None, false).unwrap());
+        assert!(Tensor::allclose(
+            &a,
+            &b,
+            RTOL_DEFAULT,
+            ATOL_DEFAULT,
+            EQUAL_NAN_DEFAULT
+        ));
         let c = &a + 1e-3;
-        assert!(!allclose(&a, &c, None, Some(1e-8), false).unwrap());
+        assert!(!Tensor::allclose(
+            &a,
+            &c,
+            RTOL_DEFAULT,
+            ATOL_DEFAULT,
+            EQUAL_NAN_DEFAULT
+        ));
     }
 
     #[test]
     fn test_einsum() {
         let einsum_path = None::<Vec<TInt>>; // always use default path, no manual path
-        let a = Tensor::f_from_slice(&[1.0_f64, 2.0, 3.0]).unwrap();
-        let b = Tensor::f_from_slice(&[4.0_f64, 5.0, 6.0]).unwrap();
+        let a = Tensor::from_slice(&[1.0_f64, 2.0, 3.0]);
+        let b = Tensor::from_slice(&[4.0_f64, 5.0, 6.0]);
         let c = Tensor::einsum("a,b->", &[a, b], einsum_path);
         println!("{:?}", c);
     }
