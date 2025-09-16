@@ -146,13 +146,11 @@ fn apply_two_site_gate_long_range(
 pub fn calculate_mps_local_energies(
     mps: &mut MPS,
     hamiltonians: &[Tensor],
-    positions: &[Vec<UIdx>],
+    positions: &[(UIdx, UIdx)],
 ) -> Tensor {
     let mut out: Vec<Tensor> = Vec::with_capacity(positions.len());
     for (idx, pos) in positions.iter().enumerate() {
-        assert_eq!(pos.len(), 2, "Only 2-body interactions supported");
-        let i = pos[0];
-        let j = pos[1];
+        let (i, j) = *pos;
         assert_eq!(j, i + 1, "Only nearest-neighbor is supported in Rust TEBD");
         let rdm = mps.two_body_reduced_density_matrix(i, j, true); // [4,4]
         let h = if hamiltonians.len() == 1 {
@@ -170,8 +168,8 @@ pub fn calculate_mps_local_energies(
 /// A more complete TEBD evolution with nearest-neighbor two-site gates.
 #[allow(clippy::too_many_arguments)]
 pub fn tebd(
-    hamiltonians: &[Tensor], // either len=1 or len==positions.len()
-    positions: &[Vec<UIdx>], // bonds; only nearest-neighbor supported
+    hamiltonians: &[Tensor],    // either len=1 or len==positions.len()
+    positions: &[(UIdx, UIdx)], // bonds; only nearest-neighbor supported
     mut mps: MPS,
     mut tau: f64,
     iterations: Num,
@@ -183,17 +181,13 @@ pub fn tebd(
 ) -> (MPS, Tensor) {
     assert!(iterations > 0 && calc_observation_iters > 0);
     assert!(e0_eps > 0.0 && tau > tau_min && tau_min > 0.0);
-    for p in positions {
-        assert_eq!(p.len(), 2);
-    }
     let mut obs: Vec<Tensor> = Vec::new();
     let mut last_e = Tensor::from(1.0);
     let h_is_single = hamiltonians.len() == 1;
     let mut step_count_since_tau = 0;
     for it in 0..iterations {
         for (k, pos) in positions.iter().enumerate() {
-            let i = pos[0];
-            let j = pos[1];
+            let (i, j) = *pos;
             let h = if h_is_single {
                 &hamiltonians[0]
             } else {
