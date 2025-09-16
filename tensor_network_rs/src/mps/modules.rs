@@ -253,7 +253,7 @@ impl MPS {
                 let cloned_local_tensors: Vec<Tensor> = self
                     .mps
                     .iter()
-                    .map(|tensor| tensor.shallow_clone())
+                    .map(|tensor| tensor.copy())
                     .collect();
                 let mut cloned_mps =
                     MPS::from_tensors(cloned_local_tensors, Some(self.requires_grad));
