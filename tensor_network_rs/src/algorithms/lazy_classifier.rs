@@ -1,17 +1,20 @@
-use crate::algorithms::quantum_kernels::{
-    metric_neg_chebyshev, metric_neg_cossin_chebyshev, metric_neg_log_cos_sin,
+use crate::{
+    algorithms::quantum_kernels::{
+        metric_neg_chebyshev, metric_neg_cossin_chebyshev, metric_neg_log_cos_sin,
+    },
+    types::*,
 };
 use std::collections::BTreeSet;
 use tch::{Kind, Tensor};
 
-fn unique_sorted_labels(labels: &Tensor) -> Vec<i64> {
+fn unique_sorted_labels(labels: &Tensor) -> Vec<UIdx> {
     let cpu = labels.to_kind(Kind::Int64).to_device(tch::Device::Cpu);
-    let v: Vec<i64> = Vec::<i64>::try_from(cpu).expect("to vec i64");
+    let v: Vec<TInt> = Vec::<TInt>::try_from(cpu).expect("to vec TInt");
     let mut set = BTreeSet::new();
     for x in v {
         set.insert(x);
     }
-    set.into_iter().collect()
+    set.into_iter().cast_items().collect()
 }
 
 fn euclidean_mean(samples: &Tensor, refs: &Tensor) -> Tensor {
@@ -47,7 +50,7 @@ pub fn lazy_classify(
     let classes = unique_sorted_labels(reference_labels);
     let mut dists: Vec<Tensor> = Vec::with_capacity(classes.len());
     for c in &classes {
-        let mask = reference_labels.eq(*c);
+        let mask = reference_labels.eq(c.to_tint());
         let idx = mask.nonzero().squeeze_dim(1);
         let refs_c = reference_samples.f_index_select(0, &idx).unwrap();
         let dist_c = match kernel {
@@ -75,8 +78,11 @@ pub fn lazy_classify(
         .to_kind(Kind::Int64)
         .to_device(tch::Device::Cpu); // [N]
     // Map back to class ids without tensor indexing to avoid dtype/device pitfalls
-    let idx_vec: Vec<i64> = Vec::<i64>::try_from(pred_idx).unwrap();
-    let mapped: Vec<i64> = idx_vec.into_iter().map(|ix| classes[ix as usize]).collect();
+    let idx_vec: Vec<TInt> = Vec::<TInt>::try_from(pred_idx).unwrap();
+    let mapped: Vec<TInt> = idx_vec
+        .into_iter()
+        .map(|ix| classes[ix as usize].to_tint())
+        .collect();
     Tensor::f_from_slice(&mapped).unwrap().to_kind(Kind::Int64)
 }
 
@@ -95,15 +101,13 @@ mod tests {
             .view([2, 2])
             .to_kind(k)
             .to_device(dev);
-        let labels = Tensor::f_from_slice(&[0i64, 1i64])
-            .unwrap()
-            .to_kind(Kind::Int64);
+        let labels = Tensor::f_from_slice(&[0, 1]).unwrap().to_kind(Kind::Int64);
         let samples = Tensor::f_from_slice(&[0.05, 0.0, 0.9, 0.95, 0.1, 0.2, 0.8, 1.0])
             .unwrap()
             .view([4, 2])
             .to_kind(k);
         let pred = lazy_classify(&samples, &refs, &labels, KernelKind::Euclidean);
-        let v: Vec<i64> = Vec::<i64>::try_from(pred).unwrap();
+        let v: Vec<TInt> = Vec::<TInt>::try_from(pred).unwrap();
         assert_eq!(v, vec![0, 1, 0, 1]);
     }
 }

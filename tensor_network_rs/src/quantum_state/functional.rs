@@ -1,3 +1,4 @@
+use crate::types::*;
 use crate::utils::checking::{check_quantum_gate, check_state_tensor};
 use crate::utils::einsum::named_einsum;
 use tch::{Kind, Tensor};
@@ -6,27 +7,27 @@ use tch::{Kind, Tensor};
 ///
 /// Keeps the qubits in `qubit_idx` and traces out the rest. Input `state`
 /// is assumed to have shape `[2, 2, ..., 2]`.
-pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<i64>) -> Tensor {
+pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<UIdx>) -> Tensor {
     // Normalize qubit list
     let keep = qubit_idx;
     if keep.is_empty() {
         panic!("qubit_idx must be non-empty");
     }
-    let num_qubits = state.dim() as i64;
+    let num_qubits = state.dim().cast();
     for &qi in &keep {
-        assert!((0..num_qubits).contains(&qi), "qubit_idx out of range");
+        assert!(qi < num_qubits, "qubit_idx out of range");
     }
     let mut keep_sorted = keep.clone();
     keep_sorted.sort_unstable();
     // Build permutation: [keep..., reduce...]
-    let mut reduce: Vec<i64> = (0..num_qubits).collect();
+    let mut reduce: Vec<UIdx> = (0..num_qubits).collect();
     for &k in &keep_sorted {
         reduce.retain(|&x| x != k);
     }
     let mut perm = keep_sorted.clone();
     perm.extend(reduce.iter());
-    let s = state.permute(&perm);
-    let k = keep_sorted.len() as i64;
+    let s = state.permute(perm.into_iter().cast_items().collect::<Vec<_>>());
+    let k: UIdx = keep_sorted.len().cast();
     let d_keep = 1_i64 << k;
     let d_red = 1_i64 << (num_qubits - k);
     let s2 = s.reshape([d_keep, d_red]);
@@ -42,10 +43,10 @@ pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<i64>) -> Tenso
 pub fn calc_observation(
     state: &Tensor,
     operator: &Tensor,
-    qubit_idx: Vec<i64>,
+    qubit_idx: Vec<UIdx>,
     fast_mode: bool,
 ) -> Tensor {
-    let len = qubit_idx.len() as i64;
+    let len: Num = qubit_idx.len().cast();
     let rdm = calc_reduced_density_matrix(state, qubit_idx);
     let nq = check_quantum_gate(operator, None, false).expect("invalid operator");
     assert_eq!(nq, len, "operator qubit count mismatch");
@@ -70,12 +71,12 @@ pub fn calc_observation(
 /// to guard `log(0)` as in Python.
 pub fn calc_onsite_entanglement_entropy(
     state: &Tensor,
-    qubit_idx: Option<Vec<i64>>,
+    qubit_idx: Option<Vec<UIdx>>,
     eps: f64,
 ) -> Tensor {
     check_state_tensor(state).expect("invalid state");
-    let n = state.dim() as i64;
-    let indices: Vec<i64> = match qubit_idx {
+    let n = state.dim().cast();
+    let indices: Vec<UIdx> = match qubit_idx {
         None => (0..n).collect(),
         Some(v) if !v.is_empty() => v,
         _ => panic!("qubit_idx must be None or non-empty list"),
@@ -104,12 +105,12 @@ pub fn calc_onsite_entanglement_entropy(
 pub fn project_state(
     state: &Tensor,
     project_qubit_state: &Tensor,
-    project_qubit_idx: i64,
+    project_qubit_idx: UIdx,
 ) -> Tensor {
     check_state_tensor(state).expect("invalid state");
     assert!(project_qubit_state.dim() == 1 && project_qubit_state.size()[0] == 2);
-    let n = state.dim() as i64;
-    assert!((0..n).contains(&project_qubit_idx));
+    let n = state.dim();
+    assert!((0..n).contains(&project_qubit_idx.cast()));
     // Build names s0..s{n-1}; contract dimension s{idx} with v(s)
     let s_names: Vec<String> = (0..n).map(|i| format!("s{}", i)).collect();
     let state_spec = s_names.join(" ");
@@ -118,7 +119,7 @@ pub fn project_state(
         let out: Vec<String> = s_names
             .iter()
             .enumerate()
-            .filter(|(i, _)| (*i as i64) != project_qubit_idx)
+            .filter(|(i, _)| (*i as UIdx) != project_qubit_idx)
             .map(|(_, s)| s.clone())
             .collect();
         out.join(" ")
@@ -139,7 +140,7 @@ pub fn project_state(
 pub fn observe_bond_energies(
     quantum_state: &Tensor,
     hamiltonian: Vec<Tensor>,
-    interaction_positions: Vec<Vec<i64>>,
+    interaction_positions: Vec<Vec<UIdx>>,
 ) -> Tensor {
     check_state_tensor(quantum_state).expect("invalid state");
     assert_eq!(hamiltonian.len(), interaction_positions.len());
@@ -155,7 +156,7 @@ pub fn observe_bond_energies(
 pub fn observe_bond_energies_single(
     quantum_state: &Tensor,
     hamiltonian: &Tensor,
-    interaction_positions: &[Vec<i64>],
+    interaction_positions: &[Vec<UIdx>],
 ) -> Tensor {
     check_state_tensor(quantum_state).expect("invalid state");
     check_quantum_gate(hamiltonian, None, true).expect("invalid hamiltonian tensor form");
@@ -176,12 +177,12 @@ pub fn observe_bond_energies_single(
 /// If `qubit_idx` is `None`, computes entropies for all cuts `1..N-1`.
 pub fn bipartite_entanglement_entropy(
     quantum_state: &Tensor,
-    qubit_idx: Option<Vec<i64>>,
+    qubit_idx: Option<Vec<UIdx>>,
 ) -> Tensor {
     let eps = 1e-14;
     check_state_tensor(quantum_state).expect("invalid state");
-    let num_qubits = quantum_state.dim() as i64;
-    let indices: Vec<i64> = match qubit_idx {
+    let num_qubits = quantum_state.dim().cast();
+    let indices: Vec<UIdx> = match qubit_idx {
         None => (1..num_qubits).collect(),
         Some(v) => v,
     };

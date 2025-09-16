@@ -1,10 +1,12 @@
 use tch::{Kind, Tensor};
+use crate::types::*;
 
 /// Generate a random real symmetric matrix of the given dimension.
 ///
 /// Mirrors the Python `rand_real_symmetric_matrix(dim)` utility used by
 /// the power-iteration example.
-pub fn rand_real_symmetric_matrix(dim: i64) -> Tensor {
+pub fn rand_real_symmetric_matrix(dim: Num) -> Tensor {
+    let dim: TInt = dim.cast();
     let m = Tensor::randn([dim, dim], (Kind::Float, tch::Device::Cpu));
     (&m + m.tr()) / 2.0
 }

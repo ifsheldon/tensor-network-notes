@@ -19,11 +19,13 @@ pub mod algorithms {
     pub mod time_evolving_block_decimation;
 }
 pub mod feature_mapping;
+pub mod types;
 pub mod utils;
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::allclose;
+    use crate::types::*;
+    use crate::{types::TInt, utils::allclose};
     use tch::Tensor;
 
     #[test]
@@ -37,7 +39,7 @@ mod tests {
 
     #[test]
     fn test_einsum() {
-        let einsum_path = None::<Vec<i64>>; // always use default path, no manual path
+        let einsum_path = None::<Vec<TInt>>; // always use default path, no manual path
         let a = Tensor::f_from_slice(&[1.0_f64, 2.0, 3.0]).unwrap();
         let b = Tensor::f_from_slice(&[4.0_f64, 5.0, 6.0]).unwrap();
         let c = Tensor::einsum("a,b->", &[a, b], einsum_path);
@@ -57,9 +59,9 @@ mod tests {
         let virt = 2;
         let mut m = MPS::random(length, phys, virt, MPSType::Open, k, dev, false);
         m.center_orthogonalization(0, "qr", None, true, true);
-        let samples = Tensor::rand([5, length, phys], (k, dev));
+        let samples = Tensor::rand([5, length.to_tint(), phys.to_tint()], (k, dev));
         let full = crate::algorithms::gmps::eval_nll(&samples, &m, false);
-        let idx: Vec<i64> = (0..length).collect();
+        let idx: Vec<UIdx> = (0..length).collect();
         let sub = crate::algorithms::gmps::eval_nll_selected_features(&samples, &m, &idx, false);
         let diff = (full - sub).abs().max();
         let d = diff.double_value(&[]);

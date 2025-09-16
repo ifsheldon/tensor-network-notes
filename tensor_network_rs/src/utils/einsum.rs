@@ -1,3 +1,4 @@
+use crate::constants::NO_OPT_PATH;
 use std::collections::HashMap;
 use tch::Tensor;
 
@@ -73,7 +74,7 @@ pub fn named_einsum(spec: &str, inputs: &[Tensor]) -> Tensor {
 
     // Call tch einsum
     let owned: Vec<Tensor> = inputs.iter().map(|t| t.shallow_clone()).collect();
-    Tensor::einsum(&eq, &owned, None::<Vec<i64>>)
+    Tensor::einsum(&eq, &owned, NO_OPT_PATH)
 }
 
 #[cfg(test)]

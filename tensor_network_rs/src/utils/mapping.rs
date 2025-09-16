@@ -1,15 +1,17 @@
-use crate::utils::checking::check_quantum_gate;
+use crate::{types::*, utils::checking::check_quantum_gate};
 use tch::{Kind, Tensor};
 
 /// Inverse a permutation.
-pub fn inverse_permutation(permutation: &[i64]) -> Vec<i64> {
-    let permutation = Tensor::from_slice(permutation);
+pub fn inverse_permutation(permutation: &[UIdx]) -> Vec<UIdx> {
+    let perm: Vec<Idx> = permutation.iter().copied().cast_items().collect();
+    let permutation = Tensor::from_slice(&perm);
     let mut inv = Tensor::empty_like(&permutation);
     let arange = Tensor::arange(
         permutation.size1().unwrap(),
         (permutation.kind(), permutation.device()),
     );
-    inv.scatter_(0, &permutation, &arange).try_into().unwrap()
+    let v: Vec<Idx> = inv.scatter_(0, &permutation, &arange).try_into().unwrap();
+    v.into_iter().cast_items().collect()
 }
 
 /// Unify the dtypes of two tensors to the most appropriate type.
@@ -73,7 +75,7 @@ pub fn map_float_tensor_to_complex(t: &Tensor) -> Tensor {
 /// * `num_qubit`: The number of qubits the gate is acting on. If None, it is inferred from the tensor shape.
 /// # Returns
 /// The matrix form of the quantum gate tensor.
-pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<i64>) -> Tensor {
+pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<Num>) -> Tensor {
     let ndim = t.dim();
     assert!(
         ndim % 2 == 0,
@@ -96,11 +98,11 @@ pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<i64>) -> Tensor 
 /// * `num_qubit`: The number of qubits the gate is acting on. If None, it is inferred from the matrix shape.
 /// # Returns
 /// The tensor form of the quantum gate matrix.
-pub fn view_gate_matrix_as_tensor(t: &Tensor, num_qubit: Option<i64>) -> Tensor {
+pub fn view_gate_matrix_as_tensor(t: &Tensor, num_qubit: Option<Num>) -> Tensor {
     assert!(t.dim() == 2, "Matrix must have 2 dimensions");
     let sz = t.size();
     assert!(sz[0] == sz[1], "Matrix must be square");
-    let qubit_count = check_quantum_gate(t, num_qubit, false).expect("invalid gate matrix");
+    let qubit_count = check_quantum_gate(t, num_qubit.cast(), false).expect("invalid gate matrix");
     let dims = vec![2_i64; (qubit_count * 2) as usize];
     t.view(&dims[..])
 }

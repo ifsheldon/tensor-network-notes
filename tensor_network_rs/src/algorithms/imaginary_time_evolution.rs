@@ -1,5 +1,6 @@
 use crate::quantum_state::functional::calc_observation;
 use crate::tensor_gates::functional::apply_gate;
+use crate::types::*;
 use crate::utils::mapping::{view_gate_matrix_as_tensor, view_gate_tensor_as_matrix};
 use tch::{Device, Kind, Tensor};
 
@@ -12,13 +13,13 @@ use tch::{Device, Kind, Tensor};
 /// when the ground energy stabilizes below `e0_converge_limit * tau`.
 pub fn imaginary_time_evolution(
     hamiltonian: &Tensor,
-    interaction_positions: Vec<Vec<i64>>,
+    interaction_positions: Vec<Vec<UIdx>>,
     mut tau: f64,
-    iterations: i64,
-    time_ob: i64,
+    iterations: Num,
+    time_ob: Num,
     e0_converge_limit: f64,
     tau_min: f64,
-    num_qubits: Option<i64>,
+    num_qubits: Option<Num>,
     dtype: Option<Kind>,
     device: Option<Device>,
     init_qubit_state: Option<Tensor>,
@@ -32,7 +33,7 @@ pub fn imaginary_time_evolution(
         let s = if let Some(s0) = init_qubit_state {
             s0.shallow_clone()
         } else {
-            Tensor::randn(vec![2_i64; nq as usize], (k, dev))
+            Tensor::randn(vec![2_i64; nq.cast()], (k, dev))
         };
         let s_normed = &s / s.norm();
         (s_normed, k, dev)
