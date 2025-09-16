@@ -8,6 +8,10 @@ fn check_samples(samples: &Tensor) {
     assert!(max.double_value(&[]) <= 1.0);
 }
 
+/// Calculate the pairwise distance matrix using negative log-cos-sin mapping.
+///
+/// Mirrors Python `metric_matrix_neg_log_cos_sin(samples, theta, calculation_method)`;
+/// when `dedup=true` uses symmetry to avoid duplicate work.
 pub fn metric_matrix_neg_log_cos_sin(samples: &Tensor, theta: f64, dedup: bool) -> Tensor {
     check_samples(samples);
     assert!((0.0..=std::f64::consts::FRAC_PI_2).contains(&theta));
@@ -43,6 +47,7 @@ pub fn metric_matrix_neg_log_cos_sin(samples: &Tensor, theta: f64, dedup: bool) 
     }
 }
 
+/// Convenience wrapper taking the Python-style `calculation_method` string.
 pub fn metric_matrix_neg_log_cos_sin_method(
     samples: &Tensor,
     theta: f64,
@@ -55,6 +60,9 @@ pub fn metric_matrix_neg_log_cos_sin_method(
     }
 }
 
+/// Distance matrix between `samples` and `reference_samples` using NLL with
+/// cossin mapping. Processes data in mini-batches to reduce peak memory,
+/// mirroring the Python helper.
 pub fn metric_neg_log_cos_sin(
     samples: &Tensor,
     refs: &Tensor,
@@ -84,6 +92,8 @@ pub fn metric_neg_log_cos_sin(
     Tensor::cat(&out, 0)
 }
 
+/// Negative Chebyshev metric between `samples` and `reference_samples`,
+/// computed in batches as in the Python version.
 pub fn metric_neg_chebyshev(samples: &Tensor, refs: &Tensor, batch_size: Option<i64>) -> Tensor {
     check_samples(samples);
     check_samples(refs);
@@ -106,6 +116,8 @@ pub fn metric_neg_chebyshev(samples: &Tensor, refs: &Tensor, batch_size: Option<
     Tensor::cat(&out, 0)
 }
 
+/// Combined metric: NLL with cossin mapping followed by reduction via min
+/// over features (negative Chebyshev). Mirrors Python behavior.
 pub fn metric_neg_cossin_chebyshev(
     samples: &Tensor,
     refs: &Tensor,

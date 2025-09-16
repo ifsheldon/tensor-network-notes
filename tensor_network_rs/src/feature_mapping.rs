@@ -1,5 +1,13 @@
 use tch::{IndexOp, Tensor};
 
+/// Apply cossin feature mapping for qubit systems (d=2).
+///
+/// Maps a 2D input `samples` of shape `[batch, feature_num]` into
+/// a tensor of shape `[batch, feature_num, 2]` whose last axis holds
+/// `[cos(theta*pi*x), sin(theta*pi*x)]` per feature.
+///
+/// Arguments are aligned with the Python version: `check_range=true`
+/// asserts inputs lie in `[0, 1]`.
 pub fn cossin_feature_map(samples: &Tensor, theta: f64, check_range: bool) -> Tensor {
     let mut x = samples.shallow_clone();
     if x.dim() == 1 {
@@ -19,6 +27,10 @@ pub fn cossin_feature_map(samples: &Tensor, theta: f64, check_range: bool) -> Te
     Tensor::stack(&[cos, sin], -1)
 }
 
+/// Convert a feature tensor of shape `[batch, feature_dim, 2]` to a
+/// multi-qubit state tensor of shape `[batch, 2, ..., 2]` (feature_dim copies).
+///
+/// The contraction follows the same named-einsum construction used in Python.
 pub fn feature_map_to_qubit_state(features: &Tensor) -> Tensor {
     assert!(features.dim() == 3 && features.size()[2] == 2);
     let f = features.size()[1];
@@ -34,6 +46,10 @@ pub fn feature_map_to_qubit_state(features: &Tensor) -> Tensor {
     crate::utils::einsum::named_einsum(&eq, &parts)
 }
 
+/// Apply linear feature mapping: for input `x` returns `stack([x, 1-x], -1)`.
+///
+/// Shapes mirror the Python version: if `samples` is 1D it is reshaped
+/// to `[1, -1]` first; output is `[batch, *, 2]`.
 pub fn linear_mapping(samples: &Tensor) -> Tensor {
     let mut x = samples.shallow_clone();
     if x.dim() == 1 {

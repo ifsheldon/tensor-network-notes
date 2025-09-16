@@ -3,6 +3,8 @@ use tch::{IndexOp, Kind, Tensor};
 
 const EPS: f64 = 1e-14;
 
+/// One sweep step from left to right: updates left environment and returns
+/// the normalized next env along with its norm factor, matching Python.
 pub fn calc_left_to_right_step(
     current_tensor: &Tensor, // [left, physical, right]
     env_left: &Tensor,       // [batch, left]
@@ -24,6 +26,7 @@ pub fn calc_left_to_right_step(
     (next_normed, norm.squeeze())
 }
 
+/// One sweep step from right to left: symmetric to the left-to-right step.
 pub fn calc_right_to_left_step(
     current_tensor: &Tensor, // [left, physical, right]
     env_right: &Tensor,      // [batch, right]
@@ -45,6 +48,7 @@ pub fn calc_right_to_left_step(
     (next_normed, norm.squeeze())
 }
 
+/// Compute negative log-likelihood from per-site norm factors `[batch, L]`.
 pub fn calc_nll(norm_factors: &Tensor) -> Tensor {
     // [batch, feature_num]
     -2.0 * (norm_factors.abs() + EPS).log().sum_dim_intlist(
@@ -54,6 +58,8 @@ pub fn calc_nll(norm_factors: &Tensor) -> Tensor {
     )
 }
 
+/// Evaluate the negative log-likelihood for an MPS given feature-mapped samples.
+/// When `return_avg` is true, returns the average NLL over the batch, as in Python.
 pub fn eval_nll(samples: &Tensor, mps: &MPS, return_avg: bool) -> Tensor {
     // samples: [dataset, feature_num, feature_dim]
     assert!(
@@ -243,6 +249,9 @@ pub fn eval_nll_selected_features(
     if return_avg { nll.mean(k) } else { nll }
 }
 
+/// Calculate the gradient with respect to the current local tensor.
+/// Implements the same normalized gradient expression and optional TSGO
+/// projection used in the Python code.
 pub fn calc_gradient(
     env_left: &Tensor,
     env_right: &Tensor,
@@ -283,6 +292,8 @@ pub fn calc_gradient(
     &grad / norm
 }
 
+/// Train an MPS with the GMPS algorithm. Returns the loss curve and the trained MPS.
+/// Follows the two-sweep (L→R then R→L) update pattern in the Python version.
 pub fn train_gmps(
     samples: &Tensor,
     batch_size: i64,

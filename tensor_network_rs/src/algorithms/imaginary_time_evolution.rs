@@ -4,6 +4,12 @@ use crate::utils::mapping::{view_gate_matrix_as_tensor, view_gate_tensor_as_matr
 use tch::{Device, Kind, Tensor};
 
 #[allow(clippy::too_many_arguments)]
+/// Imaginary Time Evolution (ITE) for a 2-body Hamiltonian acting on given
+/// `interaction_positions` (pairs of qubit indices).
+///
+/// Mirrors the Python helper: evolves by repeatedly applying `exp(-tau H)`
+/// in tensor form, normalizing the state, and adaptively halving `tau`
+/// when the ground energy stabilizes below `e0_converge_limit * tau`.
 pub fn imaginary_time_evolution(
     hamiltonian: &Tensor,
     interaction_positions: Vec<Vec<i64>>,

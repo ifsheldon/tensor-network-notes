@@ -67,7 +67,7 @@ pub fn map_float_tensor_to_complex(t: &Tensor) -> Tensor {
 
 /// Convert a tensor representing a quantum gate into a matrix form.
 /// The tensor should have an even number of dimensions, each of size 2.
-/// 
+///
 /// # Arguments
 /// * `t`: The tensor representing the quantum gate.
 /// * `num_qubit`: The number of qubits the gate is acting on. If None, it is inferred from the tensor shape.
@@ -90,7 +90,7 @@ pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<i64>) -> Tensor 
 
 /// Convert a matrix representing a quantum gate into a tensor form.
 /// The matrix should have dimensions (2^n, 2^n) for some n.
-/// 
+///
 /// # Arguments
 /// * `t`: The matrix representing the quantum gate.
 /// * `num_qubit`: The number of qubits the gate is acting on. If None, it is inferred from the matrix shape.

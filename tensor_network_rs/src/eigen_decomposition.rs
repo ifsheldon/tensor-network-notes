@@ -1,12 +1,20 @@
 use tch::{Kind, Tensor};
 
+/// Generate a random real symmetric matrix of the given dimension.
+///
+/// Mirrors the Python `rand_real_symmetric_matrix(dim)` utility used by
+/// the power-iteration example.
 pub fn rand_real_symmetric_matrix(dim: i64) -> Tensor {
     let m = Tensor::randn([dim, dim], (Kind::Float, tch::Device::Cpu));
     (&m + m.tr()) / 2.0
 }
 
-/// Power-iteration-like eigen solver via matrix exponential as in Python version.
-/// Returns (eigenvalue, eigenvector).
+/// Power-iteration-like eigen solver via matrix exponential, matching the
+/// Python `eigs_power(mat, which, v0)` behavior.
+///
+/// - `which` is one of "la", "sa", "lm", "sm" for largest/smallest
+///   algebraic or magnitude.
+/// - Returns `(eigenvalue, eigenvector)` with a unit-norm eigenvector.
 pub fn eigs_power(mat: &Tensor, which: &str, v0: Option<&Tensor>) -> tch::Result<(Tensor, Tensor)> {
     let which = which.to_lowercase();
     let h = mat;

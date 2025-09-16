@@ -2,11 +2,13 @@ use crate::utils::einsum::named_einsum;
 use tch::{Device, IndexOp, Kind, Tensor};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The type of the MPS (open or periodic boundary conditions).
 pub enum MPSType {
     Open,
     Periodic,
 }
 
+/// Determine the type of the MPS from endpoint virtual dimensions.
 pub fn get_mps_type(mps: &[Tensor]) -> MPSType {
     if mps.first().unwrap().size()[0] == 1 && mps.last().unwrap().size()[2] == 1 {
         MPSType::Open
@@ -15,6 +17,10 @@ pub fn get_mps_type(mps: &[Tensor]) -> MPSType {
     }
 }
 
+/// Generate random MPS local tensors.
+///
+/// Mirrors the Python `gen_random_mps_tensors`: for `Open`, endpoints have
+/// virtual dims `[1, D]` and `[D, 1]`; for `Periodic`, all sites are `[D, P, D]`.
 pub fn gen_random_mps_tensors(
     length: i64,
     physical_dim: i64,
@@ -55,6 +61,8 @@ pub fn gen_random_mps_tensors(
     }
 }
 
+/// Calculate the global tensor by contracting the MPS tensors using a single
+/// named-einsum expression, aligned with the Python implementation.
 pub fn calc_global_tensor_by_contract(mps: &[Tensor]) -> Tensor {
     // Build a single named-einsum that joins all 3-d tensors along virtual bonds.
     let n = mps.len();
@@ -82,6 +90,9 @@ pub fn calc_global_tensor_by_contract(mps: &[Tensor]) -> Tensor {
     named_einsum(&spec, &owned).squeeze()
 }
 
+/// Calculate the global tensor by iterative tensordot contractions.
+///
+/// This variant is generally faster in practice, mirroring the Python helper.
 pub fn calc_global_tensor_by_tensordot(mps: &[Tensor]) -> Tensor {
     assert!(!mps.is_empty());
     let mut state = mps[0].shallow_clone();
@@ -92,6 +103,8 @@ pub fn calc_global_tensor_by_tensordot(mps: &[Tensor]) -> Tensor {
     state.squeeze()
 }
 
+/// Project multiple qubits of an MPS given projection vectors per site, and
+/// return the new local tensors of the resulting MPS.
 pub fn project_multi_qubits_vec(
     mps_local_tensors: &[Tensor],
     qubit_indices: &[i64],
@@ -167,6 +180,7 @@ pub fn project_multi_qubits_vec(
     local_tensors
 }
 
+/// Project multiple qubits of an MPS by choosing basis-state indices per site.
 pub fn project_multi_qubits_indices(
     mps_local_tensors: &[Tensor],
     qubit_indices: &[i64],
@@ -237,6 +251,9 @@ pub fn project_multi_qubits_indices(
     local_tensors
 }
 
+/// One step of orthogonalization from left to right, making the local tensor
+/// isometric and pushing a factor `R` into the right neighbor. Supports SVD
+/// (with optional truncation) or QR, matching the Python API.
 pub fn orthogonalize_left2right_step(
     mps_tensors: &[Tensor],
     local_tensor_idx: usize,
@@ -283,6 +300,8 @@ pub fn orthogonalize_left2right_step(
     (new_local_tensor, new_right)
 }
 
+/// One step of orthogonalization from right to left, symmetrically to the
+/// left-to-right variant.
 pub fn orthogonalize_right2left_step(
     mps_tensors: &[Tensor],
     local_tensor_idx: usize,
@@ -329,6 +348,8 @@ pub fn orthogonalize_right2left_step(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Orthogonalize along a range `[start_idx .. end_idx]` inclusively, applying
+/// repeated single-site steps; optionally return only changed indices.
 pub fn orthogonalize_arange(
     mps_tensors: &[Tensor],
     start_idx: usize,
@@ -370,6 +391,8 @@ pub fn orthogonalize_arange(
     }
 }
 
+/// Perform tensor-train (TT) decomposition of a full state tensor into
+/// a sequence of local MPS tensors, optionally clipping ranks via SVD.
 pub fn tt_decomposition(
     state: &Tensor,
     max_rank: Option<i64>,
@@ -417,6 +440,9 @@ pub fn tt_decomposition(
     (locals, clipped)
 }
 
+/// Calculate per-site norm factors for an MPS. For open chains an efficient
+/// left-to-right accumulation is used; for periodic chains a 4-index transfer
+/// approach matches the Python version.
 pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tensor {
     assert!(!mps.is_empty());
     let conj: Vec<Tensor> = mps.iter().map(|t| t.conj()).collect();
@@ -471,6 +497,8 @@ pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tenso
     }
 }
 
+/// Normalize an MPS by distributing the inverse square-root of the per-site
+/// norms across local tensors, matching the Python helper.
 pub fn normalize_mps(mps: &[Tensor]) -> Vec<Tensor> {
     let norms = calculate_mps_norm_factors(mps, true);
     let factors = 1.0f64 / norms.sqrt();
@@ -483,6 +511,8 @@ pub fn normalize_mps(mps: &[Tensor]) -> Vec<Tensor> {
     out
 }
 
+/// Calculate the inner product factors (length `N+1`) between two MPS of the
+/// same length; last entry collapses remaining indices. Mirrors Python.
 pub fn calc_inner_product(mps0: &[Tensor], mps1: &[Tensor]) -> Tensor {
     assert_eq!(mps0.len(), mps1.len());
     let n = mps0.len();

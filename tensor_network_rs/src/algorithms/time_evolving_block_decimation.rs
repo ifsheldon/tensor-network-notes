@@ -5,6 +5,8 @@ use crate::mps::functional::orthogonalize_arange;
 use crate::utils::checking::check_quantum_gate;
 use tch::Tensor;
 
+/// Minimal TEBD-like evolution by repeatedly applying a two-site gate at
+/// specified positions, with state renormalization after each step.
 pub fn time_evolving_block_decimation(
     initial_state: &Tensor,
     two_site_gate: &Tensor,
@@ -135,6 +137,8 @@ fn apply_two_site_gate_long_range(
     }
 }
 
+/// Compute local bond energies for nearest-neighbor positions using two-body
+/// reduced density matrices and `[4,4]` Hamiltonians.
 pub fn calculate_mps_local_energies(
     mps: &mut MPS,
     hamiltonians: &[Tensor],

@@ -2,6 +2,10 @@ use crate::utils::checking::{check_quantum_gate, check_state_tensor};
 use crate::utils::einsum::named_einsum;
 use tch::{Kind, Tensor};
 
+/// Calculate the reduced density matrix of a quantum state.
+///
+/// Keeps the qubits in `qubit_idx` and traces out the rest. Input `state`
+/// is assumed to have shape `[2, 2, ..., 2]`.
 pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<i64>) -> Tensor {
     // Normalize qubit list
     let keep = qubit_idx;
@@ -31,6 +35,10 @@ pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<i64>) -> Tenso
     s2.matmul(&s_h)
 }
 
+/// Calculate the expectation value of an operator on a quantum state.
+///
+/// `operator` can be in tensor form (rank `2n`) or in matrix form `[2^n, 2^n]`.
+/// `qubit_idx` selects the qubits the operator acts on.
 pub fn calc_observation(
     state: &Tensor,
     operator: &Tensor,
@@ -56,6 +64,10 @@ pub fn calc_observation(
     }
 }
 
+/// Calculate the onsite entanglement entropy for selected qubits.
+///
+/// If `qubit_idx` is `None`, computes for all sites. Adds a small `eps`
+/// to guard `log(0)` as in Python.
 pub fn calc_onsite_entanglement_entropy(
     state: &Tensor,
     qubit_idx: Option<Vec<i64>>,
@@ -87,6 +99,8 @@ pub fn calc_onsite_entanglement_entropy(
     Tensor::stack(&ent, 0)
 }
 
+/// Project a quantum state onto a specific single-qubit state at `project_qubit_idx`
+/// and renormalize.
 pub fn project_state(
     state: &Tensor,
     project_qubit_state: &Tensor,
@@ -118,6 +132,10 @@ pub fn project_state(
     &new_state / norm
 }
 
+/// Calculate bond energies for a set of interactions.
+///
+/// `hamiltonian` is a list of rank-`2n` gate tensors (tensor form), each
+/// evaluated on the corresponding positions in `interaction_positions`.
 pub fn observe_bond_energies(
     quantum_state: &Tensor,
     hamiltonian: Vec<Tensor>,
@@ -133,6 +151,7 @@ pub fn observe_bond_energies(
     Tensor::stack(&vals, 0)
 }
 
+/// Variant that accepts a single Hamiltonian tensor reused across positions.
 pub fn observe_bond_energies_single(
     quantum_state: &Tensor,
     hamiltonian: &Tensor,
@@ -152,6 +171,9 @@ pub fn observe_bond_energies_single(
     Tensor::stack(&vals, 0)
 }
 
+/// Calculate the bipartite entanglement entropy across cuts.
+///
+/// If `qubit_idx` is `None`, computes entropies for all cuts `1..N-1`.
 pub fn bipartite_entanglement_entropy(
     quantum_state: &Tensor,
     qubit_idx: Option<Vec<i64>>,

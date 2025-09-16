@@ -5,6 +5,10 @@ use crate::mps::functional::{
 use tch::{Device, Kind, Tensor};
 
 #[allow(dead_code)]
+/// Matrix Product State (MPS) container mirroring the Python class.
+///
+/// Provides utilities for center orthogonalization, normalization, norms,
+/// projections, reduced density matrices, and basic conversions.
 pub struct MPS {
     mps: Vec<Tensor>,
     length: usize,
@@ -18,6 +22,7 @@ pub struct MPS {
 }
 
 impl MPS {
+    /// Construct an MPS from a vector of local tensors.
     pub fn from_tensors(mps_tensors: Vec<Tensor>, requires_grad: Option<bool>) -> Self {
         assert!(!mps_tensors.is_empty());
         let length = mps_tensors.len();
@@ -82,6 +87,8 @@ impl MPS {
         &self.mps
     }
 
+    /// Perform center orthogonalization (in-place). Matches Python semantics
+    /// for modes `"svd"`/`"qr"`, optional truncation, and optional normalization.
     pub fn center_orthogonalization(
         &mut self,
         mut center: isize,
@@ -140,26 +147,32 @@ impl MPS {
         }
     }
 
+    /// Normalize the center tensor in-place to unit norm.
     pub fn center_normalize(&mut self) {
         let c = self.center.expect("not center-orthogonalized");
         let n = self.mps[c].norm();
         self.mps[c] = &self.mps[c] / n;
     }
 
+    /// Force set a local tensor with dtype/device checks, mirroring Python guardrails.
     pub fn force_set_local_tensor(&mut self, i: usize, value: Tensor) {
         let v = value.to_kind(self.dtype).to_device(self.device);
         self.mps[i] = v;
     }
 
+    /// Calculate the global state tensor by contracting all local tensors.
     pub fn global_tensor(&self) -> Tensor {
         if self.length > 15 { /* warning omitted in Rust */ }
         calc_global_tensor_by_tensordot(&self.mps)
     }
 
+    /// Per-site norm factors (real), following the Python helper.
     pub fn norm_factors(&self) -> Tensor {
         calculate_mps_norm_factors(&self.mps, true).real()
     }
 
+    /// Norm of the MPS; when `efficient=true` and center is set, uses the
+    /// center tensor norm shortcut, otherwise multiplies sqrt of factors.
     pub fn norm(&self, efficient: bool) -> Tensor {
         if efficient && self.center.is_some() {
             return self.mps[self.center.unwrap()].norm();
@@ -168,6 +181,7 @@ impl MPS {
         f.sqrt().prod(f.kind())
     }
 
+    /// Normalize the MPS in-place (either via center tensor or per-site factors).
     pub fn normalize_(&mut self, efficient: bool) {
         if efficient && self.center.is_some() {
             let c = self.center.unwrap();
@@ -181,6 +195,7 @@ impl MPS {
         }
     }
 
+    /// Inner product with another MPS; optionally return the per-site product factors.
     pub fn inner_product(&self, other: &MPS, return_product_factors: bool) -> Tensor {
         assert_eq!(self.length, other.length);
         let factors = calc_inner_product(&self.mps, &other.mps);
@@ -191,11 +206,13 @@ impl MPS {
         }
     }
 
+    /// Project multiple qubits using projection vectors, returning a new MPS.
     pub fn project_multi_qubits_vec(&self, qubit_indices: &[i64], states: &Tensor) -> MPS {
         let new_locals = project_multi_qubits_vec(&self.mps, qubit_indices, states);
         MPS::from_tensors(new_locals, Some(self.requires_grad))
     }
 
+    /// Project multiple qubits by choosing basis-state indices, returning a new MPS.
     pub fn project_multi_qubits_indices(&self, qubit_indices: &[i64], states_idx: &[i64]) -> MPS {
         let new_locals = crate::mps::functional::project_multi_qubits_indices(
             &self.mps,
@@ -205,6 +222,7 @@ impl MPS {
         MPS::from_tensors(new_locals, Some(self.requires_grad))
     }
 
+    /// Initialize an MPS from a full state tensor via TT decomposition.
     pub fn from_state_tensor(state_tensor: &Tensor, max_rank: Option<i64>, use_svd: bool) -> MPS {
         let (locals, _clipped) = tt_decomposition(state_tensor, max_rank, use_svd);
         let mut m = MPS::from_tensors(locals, Some(false));
@@ -213,6 +231,7 @@ impl MPS {
     }
 
     // RDM utilities
+    /// One-body reduced density matrix at `idx`. If needed, moves center.
     pub fn one_body_reduced_density_matrix(
         &mut self,
         idx: usize,
@@ -242,6 +261,8 @@ impl MPS {
         )
     }
 
+    /// Two-body reduced density matrix on sites `(idx0, idx1)`; if `return_matrix`
+    /// is true, returns `[4,4]`, otherwise `[2,2,2,2]`.
     pub fn two_body_reduced_density_matrix(
         &mut self,
         idx0: usize,
