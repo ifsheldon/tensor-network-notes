@@ -240,7 +240,7 @@ impl MPS {
     pub fn one_body_reduced_density_matrix(
         &mut self,
         idx: UIdx,
-        _do_tracing: bool,
+        do_tracing: bool,
         inplace_mutation: bool,
     ) -> Tensor {
         assert!(idx < self.length);
@@ -249,22 +249,32 @@ impl MPS {
                 self.center_orthogonalization(idx.cast(), "qr", None, true, true);
             } else {
                 // out-of-place: shallow-clone tensors
-                let tmp_vec: Vec<Tensor> = self.mps.iter().map(|t| t.shallow_clone()).collect();
-                let mut tmp = MPS::from_tensors(tmp_vec, Some(self.requires_grad));
-                tmp.center_orthogonalization(idx.cast(), "qr", None, true, true);
-                return tmp.one_body_reduced_density_matrix(idx, _do_tracing, true);
+                let cloned_local_tensors: Vec<Tensor> = self
+                    .mps
+                    .iter()
+                    .map(|tensor| tensor.shallow_clone())
+                    .collect();
+                let mut cloned_mps =
+                    MPS::from_tensors(cloned_local_tensors, Some(self.requires_grad));
+                cloned_mps.center_orthogonalization(idx.cast(), "qr", None, true, true);
+                return cloned_mps.one_body_reduced_density_matrix(idx, do_tracing, true);
             }
         } else if self.center.unwrap() != idx {
             self.center_orthogonalization(idx.cast(), "qr", None, true, true);
         }
         let idx: usize = idx.cast();
-        let t = &self.mps[idx]; // [left, physical, right]
+        let center_tensor = &self.mps[idx]; // [left, physical, right]
         // Contract over left/right: l p r, l p' r -> p p'
-        Tensor::einsum(
+        let mut reduced_density = Tensor::einsum(
             "l p r, l q r -> p q",
-            &[t.conj(), t.shallow_clone()],
+            &[center_tensor.conj(), center_tensor.shallow_clone()],
             NO_OPT_PATH,
-        )
+        );
+        if do_tracing {
+            let trace = reduced_density.trace();
+            reduced_density = &reduced_density / trace;
+        }
+        reduced_density
     }
 
     /// Two-body reduced density matrix on sites `(idx0, idx1)`; if `return_matrix`
