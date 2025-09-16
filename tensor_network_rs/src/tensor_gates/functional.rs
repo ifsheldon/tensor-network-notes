@@ -1,12 +1,6 @@
-use crate::constants::NO_OPT_PATH;
-use crate::types::*;
-use crate::utils::einsum::named_einsum;
-use crate::utils::mapping::inverse_permutation;
-use crate::utils::mapping::{
-    map_float_kind_to_complex, unify_tensor_dtypes, view_gate_matrix_as_tensor,
-};
-use crate::utils::{checking::check_quantum_gate, default_float_kind};
+use crate::utils::*;
 use tch::{Device, IndexOp, Kind, Tensor};
+
 /// Kronecker product of two matrices.
 pub fn kron2(a: &Tensor, b: &Tensor) -> Tensor {
     // (m x n) ⊗ (p x q) = (m*p) x (n*q)
@@ -96,7 +90,7 @@ pub fn pauli_operator(pauli: &str, double_precision: bool, force_complex: bool) 
 /// If `matrix_form` is true, returns a `[2^n, 2^n]` matrix. Otherwise returns
 /// a rank-`2n` tensor with each dimension size 2, matching the Python API.
 pub fn identity_gate_tensor(num_qubits: Num, matrix_form: bool, kind: Option<Kind>) -> Tensor {
-    let k = kind.unwrap_or(default_float_kind());
+    let k = kind.unwrap_or(DEFAULT_FLOAT_KIND);
     let d = 1_i64 << num_qubits;
     if matrix_form {
         Tensor::eye(d, (k, Device::Cpu))
@@ -434,7 +428,7 @@ pub fn apply_gate_batched(
 
 /// Random unitary via Gram-Schmidt orthogonalization (fallback without linalg::qr bindings).
 pub fn rand_unitary(dim: Num, kind: Option<Kind>) -> Tensor {
-    let k = kind.unwrap_or(default_float_kind());
+    let k = kind.unwrap_or(DEFAULT_FLOAT_KIND);
     let dim = dim.to_tint();
     let m = Tensor::randn([dim, dim], (k, Device::Cpu));
     let mut q_cols: Vec<Tensor> = Vec::with_capacity(dim as usize);

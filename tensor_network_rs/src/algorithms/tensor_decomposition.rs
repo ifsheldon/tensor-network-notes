@@ -1,6 +1,6 @@
+use crate::utils::types::*;
 use tch::Tensor;
 
-use crate::types::*;
 pub fn make_matrix(tensor: &Tensor, left_index: UIdx) -> Tensor {
     let order = tensor.dim().cast();
     assert!(order >= 2);

@@ -1,5 +1,4 @@
-use crate::types::*;
-use crate::{constants::NO_OPT_PATH, utils::einsum::named_einsum};
+use crate::utils::*;
 use tch::{Device, IndexOp, Kind, Tensor};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

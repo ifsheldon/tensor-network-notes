@@ -1,4 +1,3 @@
-pub mod constants;
 pub mod eigen_decomposition;
 pub mod tensor_gates {
     pub mod functional;
@@ -19,13 +18,11 @@ pub mod algorithms {
     pub mod time_evolving_block_decimation;
 }
 pub mod feature_mapping;
-pub mod types;
 pub mod utils;
 
 #[cfg(test)]
 mod tests {
-    use crate::types::*;
-    use crate::{types::TInt, utils::allclose};
+    use crate::utils::*;
     use tch::Tensor;
 
     #[test]

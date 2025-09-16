@@ -1,4 +1,4 @@
-use crate::{types::*, utils::checking::check_quantum_gate};
+use crate::utils::*;
 use tch::{Kind, Tensor};
 
 /// Inverse a permutation.

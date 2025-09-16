@@ -1,6 +1,4 @@
-use crate::types::*;
-use crate::utils::checking::{check_quantum_gate, check_state_tensor};
-use crate::utils::einsum::named_einsum;
+use crate::utils::*;
 use tch::{Kind, Tensor};
 
 /// Calculate the reduced density matrix of a quantum state.

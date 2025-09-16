@@ -1,4 +1,4 @@
-use crate::constants::NO_OPT_PATH;
+use crate::utils::constants::NO_OPT_PATH;
 use std::collections::HashMap;
 use tch::Tensor;
 

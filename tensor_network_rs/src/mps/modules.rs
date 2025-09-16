@@ -1,9 +1,8 @@
-use crate::constants::NO_OPT_PATH;
 use crate::mps::functional::{
     MPSType, calc_global_tensor_by_tensordot, calc_inner_product, calculate_mps_norm_factors,
     gen_random_mps_tensors, orthogonalize_arange, project_multi_qubits_vec, tt_decomposition,
 };
-use crate::types::*;
+use crate::utils::*;
 use tch::{Device, Kind, Tensor};
 #[allow(dead_code)]
 /// Matrix Product State (MPS) container mirroring the Python class.

@@ -1,10 +1,7 @@
+use crate::mps::functional::orthogonalize_arange;
 use crate::mps::modules::MPS;
 use crate::tensor_gates::functional::apply_gate;
-// use crate::utils::mapping::view_gate_matrix_as_tensor; // not required in current implementation
-use crate::constants::NO_OPT_PATH;
-use crate::mps::functional::orthogonalize_arange;
-use crate::types::*;
-use crate::utils::checking::check_quantum_gate;
+use crate::utils::*;
 use tch::Tensor;
 
 /// Minimal TEBD-like evolution by repeatedly applying a two-site gate at

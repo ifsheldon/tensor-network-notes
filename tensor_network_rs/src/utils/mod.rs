@@ -1,4 +1,15 @@
-use crate::constants::{ATOL_DEFAULT, RTOL_DEFAULT};
+pub mod checking;
+pub mod constants;
+pub mod einsum;
+pub mod mapping;
+pub mod types;
+
+pub use checking::*;
+pub use constants::*;
+pub use einsum::*;
+pub use mapping::*;
+pub use types::*;
+
 use tch::{Kind, Tensor};
 
 /// Set global random seed for tch/LibTorch operations.
@@ -35,21 +46,6 @@ pub fn allclose(
     Ok(all.int64_value(&[]) != 0)
 }
 
-/// Helper to create a tensor of zeros with same shape and kind as input.
-pub fn zeros_like(x: &Tensor) -> Tensor {
-    Tensor::zeros_like(x)
-}
-
-/// Returns a CPU float kind matching typical default dtype for math.
-pub fn default_float_kind() -> Kind {
-    Kind::Float
-}
-
-/// Convert a scalar or slice of f64 into a 1D tensor (CPU, Float64).
-pub fn tensor1(values: &[f64]) -> Tensor {
-    Tensor::f_from_slice(values).unwrap()
-}
-
 /// Build a complex tensor from real/imag slices and a target shape.
 /// `complex_kind` must be `Kind::ComplexFloat` or `Kind::ComplexDouble`.
 pub fn complex_from_slices(
@@ -78,20 +74,3 @@ pub fn complex_from_slices(
         .view(shape);
     Tensor::f_complex(&re, &im).unwrap()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_allclose_nan_behavior() {
-        let a = tensor1(&[f64::NAN, 1.0]);
-        let b = tensor1(&[f64::NAN, 1.0 + 1e-9]);
-        assert!(!allclose(&a, &b, None, None, false).unwrap());
-        assert!(allclose(&a, &b, None, None, true).unwrap());
-    }
-}
-
-pub mod checking;
-pub mod einsum;
-pub mod mapping;

@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::utils::types::*;
 use tch::{IndexOp, Tensor};
 
 fn check_samples(samples: &Tensor) {

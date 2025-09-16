@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::utils::*;
 use tch::{Kind, Tensor};
 
 /// Generate a random real symmetric matrix of the given dimension.

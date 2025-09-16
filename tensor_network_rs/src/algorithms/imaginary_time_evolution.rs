@@ -1,7 +1,7 @@
 use crate::quantum_state::functional::calc_observation;
 use crate::tensor_gates::functional::apply_gate;
-use crate::types::*;
 use crate::utils::mapping::{view_gate_matrix_as_tensor, view_gate_tensor_as_matrix};
+use crate::utils::types::*;
 use tch::{Device, Kind, Tensor};
 
 #[allow(clippy::too_many_arguments)]

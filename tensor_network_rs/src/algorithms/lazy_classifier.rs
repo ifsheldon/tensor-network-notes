@@ -2,7 +2,7 @@ use crate::{
     algorithms::quantum_kernels::{
         metric_neg_chebyshev, metric_neg_cossin_chebyshev, metric_neg_log_cos_sin,
     },
-    types::*,
+    utils::types::*,
 };
 use std::collections::BTreeSet;
 use tch::{Kind, Tensor};

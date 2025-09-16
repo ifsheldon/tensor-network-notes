@@ -1,5 +1,5 @@
-use crate::constants::NO_OPT_PATH;
-use crate::{mps::modules::MPS, types::*};
+use crate::mps::modules::MPS;
+use crate::utils::*;
 use tch::{IndexOp, Kind, Tensor};
 
 const EPS: f64 = 1e-14;
