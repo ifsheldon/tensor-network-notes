@@ -66,6 +66,8 @@
 ## Conventions
 - Layout mirrors Python modules (e.g., `mps/functional.rs`). Public API names follow Python where sensible.
 - Error handling: prefer `tch::Result<T>`; escalate via `anyhow` if needed for higher-level flows.
+- Do not use `i64` in public APIs; use `UIdx` or `Idx` or `Num` instead. See `types.rs` for details.
+- Use explicitly explainable variable names in Rust, which should closely follow the python version.
 
 ## Notes & Exclusions
 - Ignore MLX (`*-mlx.ipynb`, `tensor_network/mlx`).
