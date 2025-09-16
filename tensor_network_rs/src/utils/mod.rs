@@ -39,3 +39,7 @@ pub fn complex_from_slices(
     let im = Tensor::from_slice(values_im).to_kind(real_kind).view(shape);
     Tensor::complex(&re, &im)
 }
+
+pub fn enable_efficient_mode() -> bool {
+    std::env::var("TENSOR_NETWORK_SLOW_MODE").is_err()
+}

@@ -38,12 +38,7 @@ pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<UIdx>) -> Tens
 ///
 /// `operator` can be in tensor form (rank `2n`) or in matrix form `[2^n, 2^n]`.
 /// `qubit_idx` selects the qubits the operator acts on.
-pub fn calc_observation(
-    state: &Tensor,
-    operator: &Tensor,
-    qubit_idx: Vec<UIdx>,
-    fast_mode: bool,
-) -> Tensor {
+pub fn calc_observation(state: &Tensor, operator: &Tensor, qubit_idx: Vec<UIdx>) -> Tensor {
     let len: Num = qubit_idx.len().cast();
     let rdm = calc_reduced_density_matrix(state, qubit_idx);
     let nq = check_quantum_gate(operator, None, false).expect("invalid operator");
@@ -54,7 +49,7 @@ pub fn calc_observation(
     } else {
         operator.view([d, d])
     };
-    if fast_mode {
+    if enable_efficient_mode() {
         // sum(ρ .* op^T)
         (rdm.shallow_clone() * op_mat.transpose(0, 1)).sum(rdm.kind())
     } else {
@@ -146,7 +141,7 @@ pub fn observe_bond_energies(
     let mut vals: Vec<Tensor> = Vec::with_capacity(hamiltonian.len());
     for (h, pos) in hamiltonian.iter().zip(interaction_positions.iter()) {
         check_quantum_gate(h, None, true).expect("invalid hamiltonian tensor form");
-        vals.push(calc_observation(quantum_state, h, pos.clone(), true));
+        vals.push(calc_observation(quantum_state, h, pos.clone()));
     }
     Tensor::stack(&vals, 0)
 }
@@ -161,12 +156,7 @@ pub fn observe_bond_energies_single(
     check_quantum_gate(hamiltonian, None, true).expect("invalid hamiltonian tensor form");
     let mut vals: Vec<Tensor> = Vec::with_capacity(interaction_positions.len());
     for pos in interaction_positions {
-        vals.push(calc_observation(
-            quantum_state,
-            hamiltonian,
-            pos.clone(),
-            true,
-        ));
+        vals.push(calc_observation(quantum_state, hamiltonian, pos.clone()));
     }
     Tensor::stack(&vals, 0)
 }

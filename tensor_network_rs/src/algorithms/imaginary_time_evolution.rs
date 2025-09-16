@@ -64,7 +64,7 @@ pub fn imaginary_time_evolution(
         if t % time_ob == 0 {
             let mut ground = Tensor::from(0.0);
             for pos in &interaction_positions {
-                ground = &ground + calc_observation(&state, hamiltonian, pos.clone(), true);
+                ground = &ground + calc_observation(&state, hamiltonian, pos.clone());
             }
             let diff = (&ground - &e0).abs().double_value(&[]);
             if diff < e0_converge_limit * tau {

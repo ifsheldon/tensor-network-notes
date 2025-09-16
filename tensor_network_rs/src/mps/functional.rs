@@ -457,7 +457,7 @@ pub fn tt_decomposition(
 /// Calculate per-site norm factors for an MPS. For open chains an efficient
 /// left-to-right accumulation is used; for periodic chains a 4-index transfer
 /// approach matches the Python version.
-pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tensor {
+pub fn calculate_mps_norm_factors(mps: &[Tensor]) -> Tensor {
     assert!(!mps.is_empty());
     let conj: Vec<Tensor> = mps.iter().map(|t| t.conj()).collect();
     let n = mps.len();
@@ -467,7 +467,7 @@ pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tenso
         MPSType::Open => {
             let mut v = Tensor::ones([1, 1], (kind, device)); // a b
             let norms = Tensor::empty([n.to_tint()], (kind, device));
-            if efficient_open {
+            if enable_efficient_mode() {
                 for (i, (_c, _m)) in conj.iter().zip(mps.iter()).enumerate() {
                     v = Tensor::einsum("ab,aix->bix", &[v, _c.shallow_clone()], NO_OPT_PATH);
                     v = Tensor::einsum("bix,biy->xy", &[v, _m.shallow_clone()], NO_OPT_PATH);
@@ -514,7 +514,7 @@ pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tenso
 /// Normalize an MPS by distributing the inverse square-root of the per-site
 /// norms across local tensors, matching the Python helper.
 pub fn normalize_mps(mps: &[Tensor]) -> Vec<Tensor> {
-    let norms = calculate_mps_norm_factors(mps, true);
+    let norms = calculate_mps_norm_factors(mps);
     let factors = 1.0f64 / norms.sqrt();
     let n = mps.len();
     let mut out: Vec<Tensor> = Vec::with_capacity(n);

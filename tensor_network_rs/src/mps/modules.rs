@@ -171,13 +171,13 @@ impl MPS {
 
     /// Per-site norm factors (real), following the Python helper.
     pub fn norm_factors(&self) -> Tensor {
-        calculate_mps_norm_factors(&self.mps, true).real()
+        calculate_mps_norm_factors(&self.mps).real()
     }
 
     /// Norm of the MPS; when `efficient=true` and center is set, uses the
     /// center tensor norm shortcut, otherwise multiplies sqrt of factors.
-    pub fn norm(&self, efficient: bool) -> Tensor {
-        if efficient && self.center.is_some() {
+    pub fn norm(&self) -> Tensor {
+        if enable_efficient_mode() && self.center.is_some() {
             let c: usize = self.center.unwrap().cast();
             return self.mps[c].norm();
         }
@@ -186,10 +186,10 @@ impl MPS {
     }
 
     /// Normalize the MPS in-place (either via center tensor or per-site factors).
-    pub fn normalize_(&mut self, efficient: bool) {
-        if efficient && self.center.is_some() {
+    pub fn normalize_(&mut self) {
+        if enable_efficient_mode() && self.center.is_some() {
             let c: usize = self.center.unwrap().cast();
-            self.mps[c] = &self.mps[c] / self.norm(true);
+            self.mps[c] = &self.mps[c] / self.norm();
             return;
         }
         let f = 1.0f64 / self.norm_factors().sqrt();
@@ -243,6 +243,7 @@ impl MPS {
         do_tracing: bool,
         inplace_mutation: bool,
     ) -> Tensor {
+        // TODO: split this into two functions `one_body_reduced_density_matrix` and `one_body_reduced_density_matrix_` (inplace)
         assert!(idx < self.length);
         if self.center.is_none() {
             if inplace_mutation {
@@ -331,7 +332,7 @@ mod tests {
     fn test_mps_global_norm() {
         let mut m = MPS::random(4, 2, 3, MPSType::Open, Kind::Float, Device::Cpu, false);
         m.center_orthogonalization(2, "qr", None, true, true);
-        let n = m.norm(true).double_value(&[]);
+        let n = m.norm().double_value(&[]);
         assert!(n.is_finite() && n > 0.0);
     }
 
