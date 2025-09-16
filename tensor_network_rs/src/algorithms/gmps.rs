@@ -7,46 +7,46 @@ const EPS: f64 = 1e-14;
 /// One sweep step from left to right: updates left environment and returns
 /// the normalized next env along with its norm factor, matching Python.
 pub fn calc_left_to_right_step(
-    current_tensor: &Tensor, // [left, physical, right]
-    env_left: &Tensor,       // [batch, left]
-    sample: &Tensor,         // [batch, physical]
+    current_tensor: &Tensor,          // [left, physical, right]
+    current_env_vector_left: &Tensor, // [batch, left]
+    current_sample: &Tensor,          // [batch, physical]
 ) -> (Tensor, Tensor) {
     // einsum: batch left, batch physical, left physical right -> batch right
-    let next = Tensor::einsum(
+    let next_env_vector_left = Tensor::einsum(
         "b l, b p, l p r -> b r",
         &[
-            env_left.shallow_clone(),
-            sample.shallow_clone(),
+            current_env_vector_left.shallow_clone(),
+            current_sample.shallow_clone(),
             current_tensor.shallow_clone(),
         ],
         NO_OPT_PATH,
     );
-    let norm = next.norm_scalaropt_dim(2.0, [-1].as_slice(), true);
-    let denom = &norm + EPS;
-    let next_normed = &next / denom;
-    (next_normed, norm.squeeze())
+    let current_norm_factor = next_env_vector_left.norm_scalaropt_dim(2.0, [-1].as_slice(), true);
+    let denom = &current_norm_factor + EPS;
+    let normalized_env_vector_left = &next_env_vector_left / denom;
+    (normalized_env_vector_left, current_norm_factor.squeeze())
 }
 
 /// One sweep step from right to left: symmetric to the left-to-right step.
 pub fn calc_right_to_left_step(
-    current_tensor: &Tensor, // [left, physical, right]
-    env_right: &Tensor,      // [batch, right]
-    sample: &Tensor,         // [batch, physical]
+    current_tensor: &Tensor,           // [left, physical, right]
+    current_env_vector_right: &Tensor, // [batch, right]
+    current_sample: &Tensor,           // [batch, physical]
 ) -> (Tensor, Tensor) {
     // einsum: batch right, batch physical, left physical right -> batch left
-    let next = Tensor::einsum(
+    let next_env_vector_right = Tensor::einsum(
         "b r, b p, l p r -> b l",
         &[
-            env_right.shallow_clone(),
-            sample.shallow_clone(),
+            current_env_vector_right.shallow_clone(),
+            current_sample.shallow_clone(),
             current_tensor.shallow_clone(),
         ],
         NO_OPT_PATH,
     );
-    let norm = next.norm_scalaropt_dim(2.0, [-1].as_slice(), true);
-    let denom = &norm + EPS;
-    let next_normed = &next / denom;
-    (next_normed, norm.squeeze())
+    let current_norm_factor = next_env_vector_right.norm_scalaropt_dim(2.0, [-1].as_slice(), true);
+    let denom = &current_norm_factor + EPS;
+    let normalized_env_vector_right = &next_env_vector_right / denom;
+    (normalized_env_vector_right, current_norm_factor.squeeze())
 }
 
 /// Compute negative log-likelihood from per-site norm factors `[batch, L]`.
@@ -67,7 +67,7 @@ pub fn eval_nll(samples: &Tensor, mps: &MPS, return_avg: bool) -> Tensor {
         samples.dim() == 3,
         "samples must be [dataset, feature, dim]"
     );
-    let dataset = samples.size()[0];
+    let dataset_size = samples.size()[0];
     let feature_num: Num = samples.size()[1].cast();
     assert_eq!(feature_num, mps.len());
     let center = mps.center().expect("MPS must have a center");
@@ -76,13 +76,13 @@ pub fn eval_nll(samples: &Tensor, mps: &MPS, return_avg: bool) -> Tensor {
     let dev = samples.device();
 
     // Initialize env vectors
-    let left_dim = locals[0].size()[0];
-    let right_dim = locals.last().unwrap().size()[2];
-    let mut env_left = Tensor::ones([dataset, left_dim], (k, dev));
-    let mut env_right = Tensor::ones([dataset, right_dim], (k, dev));
+    let left_virtual_dim = locals[0].size()[0];
+    let right_virtual_dim = locals.last().unwrap().size()[2];
+    let mut env_vector_left = Tensor::ones([dataset_size, left_virtual_dim], (k, dev));
+    let mut env_vector_right = Tensor::ones([dataset_size, right_virtual_dim], (k, dev));
     // collect norm factors per site
-    let mut norms: Vec<Tensor> = (0..feature_num)
-        .map(|_| Tensor::zeros([dataset], (k, dev)))
+    let mut norm_factors: Vec<Tensor> = (0..feature_num)
+        .map(|_| Tensor::zeros([dataset_size], (k, dev)))
         .collect();
 
     // convenience to extract sample at index
@@ -91,37 +91,38 @@ pub fn eval_nll(samples: &Tensor, mps: &MPS, return_avg: bool) -> Tensor {
     // Left to center-1
     for idx in 0..center {
         let idx: usize = idx.cast();
-        let (next, current_norm) =
-            calc_left_to_right_step(&locals[idx], &env_left, &samples_at(idx));
-        norms[idx] = current_norm;
-        env_left = next;
+        let (next_env_vector_left, current_norm_factor) =
+            calc_left_to_right_step(&locals[idx], &env_vector_left, &samples_at(idx));
+        norm_factors[idx] = current_norm_factor;
+        env_vector_left = next_env_vector_left;
     }
     // Right to center+1
     let mut idx = feature_num - 1;
     while idx > center {
         let i = idx as usize;
-        let (next, current_norm) = calc_right_to_left_step(&locals[i], &env_right, &samples_at(i));
-        norms[i] = current_norm;
-        env_right = next;
+        let (next_env_vector_right, current_norm_factor) =
+            calc_right_to_left_step(&locals[i], &env_vector_right, &samples_at(i));
+        norm_factors[i] = current_norm_factor;
+        env_vector_right = next_env_vector_right;
         idx -= 1;
     }
     // Center norm factor
-    let c: usize = center.cast();
-    let center_tensor = &locals[c];
-    let nf_center = Tensor::einsum(
+    let center_index: usize = center.cast();
+    let center_tensor = &locals[center_index];
+    let center_norm_factor = Tensor::einsum(
         "l p r, b l, b p, b r -> b",
         &[
             center_tensor.shallow_clone(),
-            env_left.shallow_clone(),
-            samples_at(c),
-            env_right.shallow_clone(),
+            env_vector_left.shallow_clone(),
+            samples_at(center_index),
+            env_vector_right.shallow_clone(),
         ],
         NO_OPT_PATH,
     );
-    norms[c] = nf_center;
+    norm_factors[center_index] = center_norm_factor;
 
-    let norms_stacked = Tensor::stack(&norms, 1);
-    let nll = calc_nll(&norms_stacked);
+    let norm_factors_stacked = Tensor::stack(&norm_factors, 1);
+    let nll = calc_nll(&norm_factors_stacked);
     if return_avg {
         nll.mean(nll.kind())
     } else {
@@ -150,90 +151,102 @@ pub fn eval_nll_selected_features(
     }
 
     // Shapes and helpers
-    let dataset = samples.size()[0];
+    let dataset_size = samples.size()[0];
     let k = samples.kind();
     let dev = samples.device();
     let center: usize = mps.center().expect("MPS must have a center").cast();
     let locals = mps.local_tensors();
 
     // env tensors as [batch, L, R] where L/R dims vary along sweep
-    let mut env_left = Tensor::ones([dataset, 1, 1], (k, dev));
-    let mut env_right = Tensor::ones([dataset, 1, 1], (k, dev));
-    let norms = Tensor::ones([dataset, feature_num.cast()], (k, dev));
+    let mut env_vectors_left = Tensor::ones([dataset_size, 1, 1], (k, dev));
+    let mut env_vectors_right = Tensor::ones([dataset_size, 1, 1], (k, dev));
+    let norm_factors = Tensor::ones([dataset_size, feature_num.cast()], (k, dev));
 
     let in_subset = |i: usize| set.contains(&i);
     let sample_at = |idx: usize| samples.i((.., idx.to_tint(), ..));
 
     // left to center-1
     for (i, _t) in locals.iter().enumerate().take(center) {
-        let lt = &locals[i]; // [l,p,r]
-        env_left = if in_subset(i) {
+        let local_tensor = &locals[i]; // [l,p,r]
+        env_vectors_left = if in_subset(i) {
             // selected: contract with sample -> [b,l,r]
             Tensor::einsum(
                 "l p r, b p -> b l r",
-                &[lt.shallow_clone(), sample_at(i)],
+                &[local_tensor.shallow_clone(), sample_at(i)],
                 NO_OPT_PATH,
             )
         } else {
             // unselected: transfer env: E = A^† E A -> [b, r*, r]
             Tensor::einsum(
                 "lC p rC, b lC l, l p r -> b rC r",
-                &[lt.conj(), env_left.shallow_clone(), lt.shallow_clone()],
+                &[
+                    local_tensor.conj(),
+                    env_vectors_left.shallow_clone(),
+                    local_tensor.shallow_clone(),
+                ],
                 NO_OPT_PATH,
             )
         };
-        let nf = env_left
+        let current_norm_factor = env_vectors_left
             .copy()
             .norm_scalaropt_dim(2.0, [-1, -2].as_slice(), false)
             .squeeze(); // [b]
-        norms.i((.., i.to_tint())).copy_(&nf);
-        env_left = &env_left / (nf.view([-1, 1, 1]) + EPS);
+        norm_factors
+            .i((.., i.to_tint()))
+            .copy_(&current_norm_factor);
+        env_vectors_left = &env_vectors_left / (current_norm_factor.view([-1, 1, 1]) + EPS);
     }
 
     // right to center+1
     let mut i = feature_num as isize - 1;
     while (i as usize) > center {
         let ui = i as usize;
-        let rt = &locals[ui];
-        env_right = if in_subset(ui) {
+        let local_tensor = &locals[ui];
+        env_vectors_right = if in_subset(ui) {
             // map to [b, l, r] then contract as right-env build requires later
             Tensor::einsum(
                 "l p r, b p -> b l r",
-                &[rt.shallow_clone(), sample_at(ui)],
+                &[local_tensor.shallow_clone(), sample_at(ui)],
                 NO_OPT_PATH,
             )
         } else {
             Tensor::einsum(
                 "lC p rC, b rC r, l p r -> b lC l",
-                &[rt.conj(), env_right.shallow_clone(), rt.shallow_clone()],
+                &[
+                    local_tensor.conj(),
+                    env_vectors_right.shallow_clone(),
+                    local_tensor.shallow_clone(),
+                ],
                 NO_OPT_PATH,
             )
         };
-        let nf = env_right
+        let current_norm_factor = env_vectors_right
             .copy()
             .norm_scalaropt_dim(2.0, [-1, -2].as_slice(), false)
             .squeeze();
-        norms.i((.., ui.to_tint())).copy_(&nf);
-        env_right = &env_right / (nf.view([-1, 1, 1]) + EPS);
+        norm_factors
+            .i((.., ui.to_tint()))
+            .copy_(&current_norm_factor);
+        env_vectors_right = &env_vectors_right / (current_norm_factor.view([-1, 1, 1]) + EPS);
         i -= 1;
     }
 
     // center contribution
-    let ct = &locals[center]; // [l,p,r]
-    let center_nf = if in_subset(center) {
+    let center_tensor = &locals[center]; // [l,p,r]
+    let center_norm_factor = if in_subset(center) {
         // contract sample first -> [b,l,r]
-        let new_c = Tensor::einsum(
+        let new_center_tensor = Tensor::einsum(
             "l p r, b p -> b l r",
-            &[ct.shallow_clone(), sample_at(center)],
+            &[center_tensor.shallow_clone(), sample_at(center)],
             NO_OPT_PATH,
         );
         Tensor::einsum(
             "b lC l, b lC rC, b l r, b rC r -> b",
             &[
-                env_left.shallow_clone(),
-                new_c.conj(),
-                new_c,
-                env_right.shallow_clone(),
+                env_vectors_left.shallow_clone(),
+                new_center_tensor.conj(),
+                new_center_tensor,
+                env_vectors_right.shallow_clone(),
             ],
             NO_OPT_PATH,
         )
@@ -241,14 +254,21 @@ pub fn eval_nll_selected_features(
     } else {
         Tensor::einsum(
             "lC p rC, l p r, b lC l, b rC r -> b",
-            &[ct.conj(), ct.shallow_clone(), env_left, env_right],
+            &[
+                center_tensor.conj(),
+                center_tensor.shallow_clone(),
+                env_vectors_left,
+                env_vectors_right,
+            ],
             NO_OPT_PATH,
         )
         .abs()
     };
-    norms.i((.., center.to_tint())).copy_(&center_nf);
+    norm_factors
+        .i((.., center.to_tint()))
+        .copy_(&center_norm_factor);
 
-    let nll = calc_nll(&norms);
+    let nll = calc_nll(&norm_factors);
     if return_avg { nll.mean(k) } else { nll }
 }
 
