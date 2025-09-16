@@ -9,8 +9,12 @@ pub type UIdx = u64;
 /// The integer type used for tch-rs Tensor indices, never use this in public APIs.
 pub type TInt = i64;
 
-pub trait SafeCastTo<T> {
+pub trait SafeCastTo<T>: PrimInt {
     fn cast(self) -> T;
+}
+
+pub trait ToTInt: PrimInt {
+    fn to_tint(&self) -> TInt;
 }
 
 impl<S: PrimInt, T: PrimInt> SafeCastTo<T> for S {
@@ -20,12 +24,19 @@ impl<S: PrimInt, T: PrimInt> SafeCastTo<T> for S {
     }
 }
 
-pub trait SafeCastItems<T>: Iterator {
+impl<S: SafeCastTo<TInt>> ToTInt for S {
+    #[inline]
+    fn to_tint(&self) -> TInt {
+        (*self).cast()
+    }
+}
+
+pub trait SafeCastItems<T: PrimInt>: Iterator {
     type Output: Iterator<Item = T>;
     fn cast_items(self) -> Self::Output;
 }
 
-impl<I, S, T> SafeCastItems<T> for I
+impl<I, S, T: PrimInt> SafeCastItems<T> for I
 where
     I: Iterator<Item = S>,
     S: PrimInt + SafeCastTo<T>,
@@ -39,12 +50,12 @@ where
     }
 }
 
-pub trait SafeCastItem<T> {
+pub trait SafeCastItem<T: PrimInt> {
     type Output;
     fn cast(self) -> Self::Output;
 }
 
-impl<S, T> SafeCastItem<T> for Option<S>
+impl<S, T: PrimInt> SafeCastItem<T> for Option<S>
 where
     S: PrimInt + SafeCastTo<T>,
     T: PrimInt,

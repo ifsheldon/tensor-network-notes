@@ -1,6 +1,9 @@
 use tch::{Kind, Tensor};
 
-pub fn rand_real_symmetric_matrix(dim: i64) -> Tensor {
+use crate::types::*;
+
+pub fn rand_real_symmetric_matrix(dim: Num) -> Tensor {
+    let dim: TInt = dim.cast();
     let m = Tensor::randn([dim, dim], (Kind::Float, tch::Device::Cpu));
     (&m + m.tr()) / 2.0
 }

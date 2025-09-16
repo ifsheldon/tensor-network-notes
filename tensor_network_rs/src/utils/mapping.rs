@@ -69,13 +69,13 @@ pub fn map_float_tensor_to_complex(t: &Tensor) -> Tensor {
 
 /// Convert a tensor representing a quantum gate into a matrix form.
 /// The tensor should have an even number of dimensions, each of size 2.
-/// 
+///
 /// # Arguments
 /// * `t`: The tensor representing the quantum gate.
 /// * `num_qubit`: The number of qubits the gate is acting on. If None, it is inferred from the tensor shape.
 /// # Returns
 /// The matrix form of the quantum gate tensor.
-pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<i64>) -> Tensor {
+pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<Num>) -> Tensor {
     let ndim = t.dim();
     assert!(
         ndim % 2 == 0,
@@ -85,20 +85,20 @@ pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<i64>) -> Tensor 
         t.size().iter().all(|&d| d == 2),
         "Tensor dimensions must be 2"
     );
-    let qubit_count = check_quantum_gate(t, num_qubit.cast(), true).expect("invalid gate tensor");
+    let qubit_count = check_quantum_gate(t, num_qubit, true).expect("invalid gate tensor");
     let d = 1_i64 << qubit_count; // 2^q
     t.view([d, d])
 }
 
 /// Convert a matrix representing a quantum gate into a tensor form.
 /// The matrix should have dimensions (2^n, 2^n) for some n.
-/// 
+///
 /// # Arguments
 /// * `t`: The matrix representing the quantum gate.
 /// * `num_qubit`: The number of qubits the gate is acting on. If None, it is inferred from the matrix shape.
 /// # Returns
 /// The tensor form of the quantum gate matrix.
-pub fn view_gate_matrix_as_tensor(t: &Tensor, num_qubit: Option<i64>) -> Tensor {
+pub fn view_gate_matrix_as_tensor(t: &Tensor, num_qubit: Option<Num>) -> Tensor {
     assert!(t.dim() == 2, "Matrix must have 2 dimensions");
     let sz = t.size();
     assert!(sz[0] == sz[1], "Matrix must be square");

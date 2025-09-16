@@ -1,7 +1,7 @@
+use crate::types::*;
 use std::collections::HashSet;
 use tch::{Kind, Tensor};
 use warrant::warrant;
-use crate::types::*;
 
 /// Return true if two slices share any element in common.
 pub fn iterable_have_common(a: &[i64], b: &[i64]) -> bool {

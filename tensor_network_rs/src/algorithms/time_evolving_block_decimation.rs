@@ -1,15 +1,17 @@
 use crate::mps::modules::MPS;
 use crate::tensor_gates::functional::apply_gate;
 // use crate::utils::mapping::view_gate_matrix_as_tensor; // not required in current implementation
+use crate::constants::NO_OPT_PATH;
 use crate::mps::functional::orthogonalize_arange;
+use crate::types::*;
 use crate::utils::checking::check_quantum_gate;
 use tch::Tensor;
 
 pub fn time_evolving_block_decimation(
     initial_state: &Tensor,
     two_site_gate: &Tensor,
-    positions: &[Vec<i64>],
-    steps: i64,
+    positions: &[Vec<UIdx>],
+    steps: Num,
 ) -> Tensor {
     let mut state = initial_state.shallow_clone();
     for _ in 0..steps {
@@ -54,11 +56,13 @@ fn decompose_two_site_gate(gate_mat: &Tensor) -> (Tensor, Tensor) {
 fn apply_two_site_gate_long_range(
     mps: &mut MPS,
     gate_mat: &Tensor, // [4,4]
-    p0: usize,
-    p1: usize,
-    max_virtual_dim: i64,
+    p0: UIdx,
+    p1: UIdx,
+    max_virtual_dim: Num,
 ) {
     assert!(p0 < p1 && p1 < mps.len());
+    let p0: usize = p0.cast();
+    let p1: usize = p1.cast();
     // Decompose gate into left/right factors with auxiliary bond g
     let (gl, gr) = decompose_two_site_gate(gate_mat); // gl: [i',g,i], gr: [j',g,j]
     let g_dim = gl.size()[1];
@@ -73,7 +77,7 @@ fn apply_two_site_gate_long_range(
         let new_l = Tensor::einsum(
             "l p r, p2 g p -> l p2 g r",
             &[lt.shallow_clone(), gl.shallow_clone()],
-            None::<Vec<i64>>,
+            NO_OPT_PATH,
         );
         let l = new_l.size()[0];
         let p2 = new_l.size()[1];
@@ -87,7 +91,7 @@ fn apply_two_site_gate_long_range(
             let new_t = Tensor::einsum(
                 "g0 g1, l p r -> g0 l p g1 r",
                 &[eye.shallow_clone(), t.shallow_clone()],
-                None::<Vec<i64>>,
+                NO_OPT_PATH,
             );
             let l = new_t.size()[0] * new_t.size()[1];
             let p = new_t.size()[2];
@@ -101,7 +105,7 @@ fn apply_two_site_gate_long_range(
         let new_r = Tensor::einsum(
             "l p r, p2 g p -> g l p2 r",
             &[rt.shallow_clone(), gr.shallow_clone()],
-            None::<Vec<i64>>,
+            NO_OPT_PATH,
         );
         let g = new_r.size()[0];
         let l = new_r.size()[1];
@@ -112,8 +116,8 @@ fn apply_two_site_gate_long_range(
     // Compress along [p0..p1] by sweeping with SVD truncation
     let (mps2, _) = orthogonalize_arange(
         &locals,
-        p0,
-        p1,
+        p0.cast(),
+        p1.cast(),
         "svd",
         Some(max_virtual_dim),
         false,
@@ -122,8 +126,8 @@ fn apply_two_site_gate_long_range(
     );
     let (mps3, _) = orthogonalize_arange(
         &mps2,
-        p1,
-        p0,
+        p1.cast(),
+        p0.cast(),
         "svd",
         Some(max_virtual_dim),
         false,
@@ -138,13 +142,13 @@ fn apply_two_site_gate_long_range(
 pub fn calculate_mps_local_energies(
     mps: &mut MPS,
     hamiltonians: &[Tensor],
-    positions: &[Vec<i64>],
+    positions: &[Vec<UIdx>],
 ) -> Tensor {
     let mut out: Vec<Tensor> = Vec::with_capacity(positions.len());
     for (idx, pos) in positions.iter().enumerate() {
         assert_eq!(pos.len(), 2, "Only 2-body interactions supported");
-        let i = pos[0] as usize;
-        let j = pos[1] as usize;
+        let i = pos[0];
+        let j = pos[1];
         assert_eq!(j, i + 1, "Only nearest-neighbor is supported in Rust TEBD");
         let rdm = mps.two_body_reduced_density_matrix(i, j, true); // [4,4]
         let h = if hamiltonians.len() == 1 {
@@ -163,15 +167,15 @@ pub fn calculate_mps_local_energies(
 #[allow(clippy::too_many_arguments)]
 pub fn tebd(
     hamiltonians: &[Tensor], // either len=1 or len==positions.len()
-    positions: &[Vec<i64>],  // bonds; only nearest-neighbor supported
+    positions: &[Vec<UIdx>], // bonds; only nearest-neighbor supported
     mut mps: MPS,
     mut tau: f64,
-    iterations: i64,
-    calc_observation_iters: i64,
+    iterations: Num,
+    calc_observation_iters: Num,
     e0_eps: f64,
     tau_min: f64,
-    least_iters_for_tau: i64,
-    max_virtual_dim: i64,
+    least_iters_for_tau: Num,
+    max_virtual_dim: Num,
 ) -> (MPS, Tensor) {
     assert!(iterations > 0 && calc_observation_iters > 0);
     assert!(e0_eps > 0.0 && tau > tau_min && tau_min > 0.0);
@@ -181,11 +185,11 @@ pub fn tebd(
     let mut obs: Vec<Tensor> = Vec::new();
     let mut last_e = Tensor::from(1.0);
     let h_is_single = hamiltonians.len() == 1;
-    let mut step_count_since_tau = 0_i64;
+    let mut step_count_since_tau = 0;
     for it in 0..iterations {
         for (k, pos) in positions.iter().enumerate() {
-            let i = pos[0] as usize;
-            let j = pos[1] as usize;
+            let i = pos[0];
+            let j = pos[1];
             let h = if h_is_single {
                 &hamiltonians[0]
             } else {

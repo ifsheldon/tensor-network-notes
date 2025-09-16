@@ -1,3 +1,4 @@
+use crate::types::*;
 use tch::{IndexOp, Tensor};
 
 fn check_samples(samples: &Tensor) {
@@ -59,19 +60,19 @@ pub fn metric_neg_log_cos_sin(
     samples: &Tensor,
     refs: &Tensor,
     theta: f64,
-    batch_size: Option<i64>,
+    batch_size: Option<Num>,
 ) -> Tensor {
     check_samples(samples);
     check_samples(refs);
     assert!((0.0..=std::f64::consts::FRAC_PI_2).contains(&theta));
-    let n = samples.size()[0];
+    let n = samples.size()[0].cast();
     let bs = batch_size.unwrap_or(if n >= 2 { n / 2 } else { 1 });
     let mut out: Vec<Tensor> = Vec::new();
     let mut start = 0;
     let refs_u = refs.unsqueeze(0);
     while start < n {
         let end = (start + bs).min(n);
-        let batch = samples.i(start..end).unsqueeze(1);
+        let batch = samples.i(start.to_tint()..end.to_tint()).unsqueeze(1);
         let diff = &batch - &refs_u;
         let res = (-(diff * theta).cos().log()).mean_dim(-1, false, samples.kind());
         assert!(
@@ -84,17 +85,17 @@ pub fn metric_neg_log_cos_sin(
     Tensor::cat(&out, 0)
 }
 
-pub fn metric_neg_chebyshev(samples: &Tensor, refs: &Tensor, batch_size: Option<i64>) -> Tensor {
+pub fn metric_neg_chebyshev(samples: &Tensor, refs: &Tensor, batch_size: Option<Num>) -> Tensor {
     check_samples(samples);
     check_samples(refs);
-    let n = samples.size()[0];
+    let n = samples.size()[0].cast();
     let bs = batch_size.unwrap_or(if n >= 2 { n / 2 } else { 1 });
     let mut out: Vec<Tensor> = Vec::new();
     let mut start = 0;
     let refs_u = refs.unsqueeze(0);
     while start < n {
         let end = (start + bs).min(n);
-        let batch = samples.i(start..end).unsqueeze(1);
+        let batch = samples.i(start.to_tint()..end.to_tint()).unsqueeze(1);
         let diff = &batch - &refs_u;
         let res = diff
             .norm_scalaropt_dim(2.0, [-1].as_slice(), false)
@@ -110,18 +111,18 @@ pub fn metric_neg_cossin_chebyshev(
     samples: &Tensor,
     refs: &Tensor,
     theta: f64,
-    batch_size: Option<i64>,
+    batch_size: Option<Num>,
 ) -> Tensor {
     check_samples(samples);
     check_samples(refs);
-    let n = samples.size()[0];
+    let n = samples.size()[0].cast();
     let bs = batch_size.unwrap_or(if n >= 2 { n / 2 } else { 1 });
     let mut out: Vec<Tensor> = Vec::new();
     let mut start = 0;
     let refs_u = refs.unsqueeze(0);
     while start < n {
         let end = (start + bs).min(n);
-        let batch = samples.i(start..end).unsqueeze(1);
+        let batch = samples.i(start.to_tint()..end.to_tint()).unsqueeze(1);
         let diff = &batch - &refs_u;
         let mut res = (-(diff * theta).cos().log()).mean_dim(-1, false, samples.kind());
         assert!(

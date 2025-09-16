@@ -59,12 +59,12 @@ pub fn calc_observation(
 
 pub fn calc_onsite_entanglement_entropy(
     state: &Tensor,
-    qubit_idx: Option<Vec<i64>>,
+    qubit_idx: Option<Vec<UIdx>>,
     eps: f64,
 ) -> Tensor {
     check_state_tensor(state).expect("invalid state");
-    let n = state.dim() as i64;
-    let indices: Vec<i64> = match qubit_idx {
+    let n = state.dim().cast();
+    let indices: Vec<UIdx> = match qubit_idx {
         None => (0..n).collect(),
         Some(v) if !v.is_empty() => v,
         _ => panic!("qubit_idx must be None or non-empty list"),
@@ -91,12 +91,12 @@ pub fn calc_onsite_entanglement_entropy(
 pub fn project_state(
     state: &Tensor,
     project_qubit_state: &Tensor,
-    project_qubit_idx: i64,
+    project_qubit_idx: UIdx,
 ) -> Tensor {
     check_state_tensor(state).expect("invalid state");
     assert!(project_qubit_state.dim() == 1 && project_qubit_state.size()[0] == 2);
-    let n = state.dim() as i64;
-    assert!((0..n).contains(&project_qubit_idx));
+    let n = state.dim();
+    assert!((0..n).contains(&project_qubit_idx.cast()));
     // Build names s0..s{n-1}; contract dimension s{idx} with v(s)
     let s_names: Vec<String> = (0..n).map(|i| format!("s{}", i)).collect();
     let state_spec = s_names.join(" ");
@@ -105,7 +105,7 @@ pub fn project_state(
         let out: Vec<String> = s_names
             .iter()
             .enumerate()
-            .filter(|(i, _)| (*i as i64) != project_qubit_idx)
+            .filter(|(i, _)| (*i as UIdx) != project_qubit_idx)
             .map(|(_, s)| s.clone())
             .collect();
         out.join(" ")
@@ -122,7 +122,7 @@ pub fn project_state(
 pub fn observe_bond_energies(
     quantum_state: &Tensor,
     hamiltonian: Vec<Tensor>,
-    interaction_positions: Vec<Vec<i64>>,
+    interaction_positions: Vec<Vec<UIdx>>,
 ) -> Tensor {
     check_state_tensor(quantum_state).expect("invalid state");
     assert_eq!(hamiltonian.len(), interaction_positions.len());
@@ -137,7 +137,7 @@ pub fn observe_bond_energies(
 pub fn observe_bond_energies_single(
     quantum_state: &Tensor,
     hamiltonian: &Tensor,
-    interaction_positions: &[Vec<i64>],
+    interaction_positions: &[Vec<UIdx>],
 ) -> Tensor {
     check_state_tensor(quantum_state).expect("invalid state");
     check_quantum_gate(hamiltonian, None, true).expect("invalid hamiltonian tensor form");
@@ -155,12 +155,12 @@ pub fn observe_bond_energies_single(
 
 pub fn bipartite_entanglement_entropy(
     quantum_state: &Tensor,
-    qubit_idx: Option<Vec<i64>>,
+    qubit_idx: Option<Vec<UIdx>>,
 ) -> Tensor {
     let eps = 1e-14;
     check_state_tensor(quantum_state).expect("invalid state");
-    let num_qubits = quantum_state.dim() as i64;
-    let indices: Vec<i64> = match qubit_idx {
+    let num_qubits = quantum_state.dim().cast();
+    let indices: Vec<UIdx> = match qubit_idx {
         None => (1..num_qubits).collect(),
         Some(v) => v,
     };

@@ -11,3 +11,7 @@ pub const ATOL_DEFAULT: f64 = 1e-8;
 
 /// Default behavior for NaN equality in closeness checks (PyTorch: `equal_nan=false`).
 pub const EQUAL_NAN_DEFAULT: bool = false;
+
+use crate::types::TInt;
+
+pub const NO_OPT_PATH: Option<Vec<TInt>> = None;

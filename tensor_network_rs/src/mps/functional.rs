@@ -1,4 +1,5 @@
-use crate::utils::einsum::named_einsum;
+use crate::types::*;
+use crate::{constants::NO_OPT_PATH, utils::einsum::named_einsum};
 use tch::{Device, IndexOp, Kind, Tensor};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -16,13 +17,15 @@ pub fn get_mps_type(mps: &[Tensor]) -> MPSType {
 }
 
 pub fn gen_random_mps_tensors(
-    length: i64,
-    physical_dim: i64,
-    virtual_dim: i64,
+    length: Num,
+    physical_dim: Num,
+    virtual_dim: Num,
     mps_type: MPSType,
     kind: Kind,
     device: Device,
 ) -> Vec<Tensor> {
+    let physical_dim = physical_dim.to_tint();
+    let virtual_dim = virtual_dim.to_tint();
     match mps_type {
         MPSType::Open => {
             let mut out = Vec::with_capacity(length as usize);
@@ -87,14 +90,14 @@ pub fn calc_global_tensor_by_tensordot(mps: &[Tensor]) -> Tensor {
     let mut state = mps[0].shallow_clone();
     for next in mps.iter().skip(1) {
         let next = next.shallow_clone();
-        state = Tensor::einsum("... r, r p v -> ... p v", &[state, next], None::<Vec<i64>>);
+        state = Tensor::einsum("... r, r p v -> ... p v", &[state, next], NO_OPT_PATH);
     }
     state.squeeze()
 }
 
 pub fn project_multi_qubits_vec(
     mps_local_tensors: &[Tensor],
-    qubit_indices: &[i64],
+    qubit_indices: &[UIdx],
     project_to_states: &Tensor,
 ) -> Vec<Tensor> {
     let mut local_tensors: Vec<Tensor> = mps_local_tensors
@@ -104,19 +107,15 @@ pub fn project_multi_qubits_vec(
     if qubit_indices.is_empty() {
         return local_tensors;
     }
-    assert_eq!(project_to_states.size()[0], qubit_indices.len() as i64);
+    assert_eq!(project_to_states.size()[0] as usize, qubit_indices.len());
     for (i, &qidx) in qubit_indices.iter().enumerate() {
         let lt = &local_tensors[qidx as usize];
-        let ps = project_to_states.i(i as i64);
+        let ps = project_to_states.i(i.to_tint());
         assert_eq!(lt.size()[1], ps.size()[0]);
-        let new_lt = Tensor::einsum(
-            "l p r, p -> l r",
-            &[lt.shallow_clone(), ps],
-            None::<Vec<i64>>,
-        );
+        let new_lt = Tensor::einsum("l p r, p -> l r", &[lt.shallow_clone(), ps], NO_OPT_PATH);
         local_tensors[qidx as usize] = new_lt;
     }
-    let mut idxs: Vec<i64> = qubit_indices.to_vec();
+    let mut idxs: Vec<UIdx> = qubit_indices.to_vec();
     idxs.sort_by(|a, b| b.cmp(a));
     for &qidx in idxs.iter().take(idxs.len().saturating_sub(1)) {
         assert!(qidx > 0);
@@ -128,7 +127,7 @@ pub fn project_multi_qubits_vec(
                 local_tensors[left].shallow_clone(),
                 local_tensors[right].shallow_clone(),
             ],
-            None::<Vec<i64>>,
+            NO_OPT_PATH,
         );
         local_tensors[left] = merged;
         let _ = local_tensors.remove(right);
@@ -142,7 +141,7 @@ pub fn project_multi_qubits_vec(
                     local_tensors[qidx].shallow_clone(),
                     local_tensors[1].shallow_clone(),
                 ],
-                None::<Vec<i64>>,
+                NO_OPT_PATH,
             );
             local_tensors[1] = merged;
         } else {
@@ -153,7 +152,7 @@ pub fn project_multi_qubits_vec(
                     local_tensors[left].shallow_clone(),
                     local_tensors[qidx].shallow_clone(),
                 ],
-                None::<Vec<i64>>,
+                NO_OPT_PATH,
             );
             local_tensors[left] = merged;
         }
@@ -169,8 +168,8 @@ pub fn project_multi_qubits_vec(
 
 pub fn project_multi_qubits_indices(
     mps_local_tensors: &[Tensor],
-    qubit_indices: &[i64],
-    project_to_states: &[i64],
+    qubit_indices: &[UIdx],
+    project_to_states: &[UIdx],
 ) -> Vec<Tensor> {
     assert_eq!(qubit_indices.len(), project_to_states.len());
     let mut local_tensors: Vec<Tensor> = mps_local_tensors
@@ -183,10 +182,10 @@ pub fn project_multi_qubits_indices(
     for (i, &qidx) in qubit_indices.iter().enumerate() {
         let lt = &local_tensors[qidx as usize];
         let state_idx = project_to_states[i];
-        assert!(state_idx >= 0 && state_idx < lt.size()[1]);
-        local_tensors[qidx as usize] = lt.i((.., state_idx, ..));
+        assert!(state_idx < lt.size()[1].cast());
+        local_tensors[qidx as usize] = lt.i((.., state_idx.to_tint(), ..));
     }
-    let mut idxs: Vec<i64> = qubit_indices.to_vec();
+    let mut idxs: Vec<UIdx> = qubit_indices.to_vec();
     idxs.sort_by(|a, b| b.cmp(a));
     for &qidx in idxs.iter().take(idxs.len().saturating_sub(1)) {
         assert!(qidx > 0);
@@ -198,7 +197,7 @@ pub fn project_multi_qubits_indices(
                 local_tensors[left].shallow_clone(),
                 local_tensors[right].shallow_clone(),
             ],
-            None::<Vec<i64>>,
+            NO_OPT_PATH,
         );
         local_tensors[left] = merged;
         let _ = local_tensors.remove(right);
@@ -212,7 +211,7 @@ pub fn project_multi_qubits_indices(
                     local_tensors[qidx].shallow_clone(),
                     local_tensors[1].shallow_clone(),
                 ],
-                None::<Vec<i64>>,
+                NO_OPT_PATH,
             );
             local_tensors[1] = merged;
         } else {
@@ -223,7 +222,7 @@ pub fn project_multi_qubits_indices(
                     local_tensors[left].shallow_clone(),
                     local_tensors[qidx].shallow_clone(),
                 ],
-                None::<Vec<i64>>,
+                NO_OPT_PATH,
             );
             local_tensors[left] = merged;
         }
@@ -239,28 +238,29 @@ pub fn project_multi_qubits_indices(
 
 pub fn orthogonalize_left2right_step(
     mps_tensors: &[Tensor],
-    local_tensor_idx: usize,
+    local_tensor_idx: UIdx,
     mode: &str,
-    truncate_dim: Option<i64>,
+    truncate_dim: Option<Num>,
     normalize: bool,
     check_nan: bool,
 ) -> (Tensor, Tensor) {
+    let local_tensor_idx: usize = local_tensor_idx.cast();
     assert!(mps_tensors.len() > 1);
     assert!(local_tensor_idx < mps_tensors.len() - 1);
     let mode = mode.to_lowercase();
     assert!(mode == "svd" || mode == "qr");
     let local = &mps_tensors[local_tensor_idx];
     let shape = local.size();
-    let right_dim = shape[2];
+    let right_dim: Num = shape[2].cast();
     let need_truncate = truncate_dim.is_some();
     if need_truncate {
         assert!(mode == "svd");
     }
-    let view = local.view([-1, right_dim]);
+    let view = local.view([-1, right_dim.to_tint()]);
     let (new_local, r) = if mode == "svd" {
         let (u, s, v) = view.svd(false, true);
         if let Some(td) = truncate_dim {
-            let td = td.min(right_dim);
+            let td = td.min(right_dim).to_tint();
             let u = u.i((.., 0..td));
             let s = s.i(0..td).unsqueeze(1);
             let v = v.i(0..td);
@@ -275,7 +275,7 @@ pub fn orthogonalize_left2right_step(
     let r = if normalize { &r / r.norm() } else { r };
     let new_local_tensor = new_local.view([shape[0], shape[1], -1]);
     let right = &mps_tensors[local_tensor_idx + 1];
-    let new_right = Tensor::einsum("ab,bcd->acd", &[r, right.shallow_clone()], None::<Vec<i64>>);
+    let new_right = Tensor::einsum("ab,bcd->acd", &[r, right.shallow_clone()], NO_OPT_PATH);
     if check_nan {
         assert!(new_local_tensor.isnan().any().int64_value(&[]) == 0);
         assert!(new_right.isnan().any().int64_value(&[]) == 0);
@@ -285,20 +285,21 @@ pub fn orthogonalize_left2right_step(
 
 pub fn orthogonalize_right2left_step(
     mps_tensors: &[Tensor],
-    local_tensor_idx: usize,
+    local_tensor_idx: UIdx,
     mode: &str,
-    truncate_dim: Option<i64>,
+    truncate_dim: Option<Num>,
     normalize: bool,
     check_nan: bool,
 ) -> (Tensor, Tensor) {
+    let local_tensor_idx: usize = local_tensor_idx.cast();
     assert!(mps_tensors.len() > 1);
     assert!(local_tensor_idx > 0 && local_tensor_idx < mps_tensors.len());
     let mode = mode.to_lowercase();
     assert!(mode == "svd" || mode == "qr");
     let local = &mps_tensors[local_tensor_idx];
     let shape = local.size();
-    let left_dim = shape[0];
-    let view = local.view([left_dim, -1]).transpose(0, 1);
+    let left_dim: Num = shape[0].cast();
+    let view = local.view([left_dim.to_tint(), -1]).transpose(0, 1);
     let need_truncate = truncate_dim.is_some();
     if need_truncate {
         assert!(mode == "svd");
@@ -306,7 +307,7 @@ pub fn orthogonalize_right2left_step(
     let (q_t, r) = if mode == "svd" {
         let (u, s, v) = view.svd(false, true);
         let (u, s, v, _rank) = if let Some(td) = truncate_dim {
-            let rank = s.size()[0].min(td);
+            let rank = s.size()[0].min(td.to_tint());
             (u.i((.., 0..rank)), s.i(0..rank), v.i(0..rank), rank)
         } else {
             let r = s.size()[0];
@@ -320,7 +321,7 @@ pub fn orthogonalize_right2left_step(
     let r = if normalize { &r / r.norm() } else { r };
     let new_local = q_t.view([-1, shape[1], shape[2]]);
     let left = &mps_tensors[local_tensor_idx - 1];
-    let new_left = Tensor::einsum("abc,dc->abd", &[left.shallow_clone(), r], None::<Vec<i64>>);
+    let new_left = Tensor::einsum("abc,dc->abd", &[left.shallow_clone(), r], NO_OPT_PATH);
     if check_nan {
         assert!(new_local.isnan().any().int64_value(&[]) == 0);
         assert!(new_left.isnan().any().int64_value(&[]) == 0);
@@ -331,23 +332,31 @@ pub fn orthogonalize_right2left_step(
 #[allow(clippy::too_many_arguments)]
 pub fn orthogonalize_arange(
     mps_tensors: &[Tensor],
-    start_idx: usize,
-    end_idx: usize,
+    start_idx: UIdx,
+    end_idx: UIdx,
     mode: &str,
-    truncate_dim: Option<i64>,
+    truncate_dim: Option<Num>,
     normalize: bool,
     return_changed: bool,
     check_nan: bool,
-) -> (Vec<Tensor>, Option<Vec<usize>>) {
-    let n = mps_tensors.len();
+) -> (Vec<Tensor>, Option<Vec<UIdx>>) {
+    let n = mps_tensors.len().cast();
+    let start_idx: usize = start_idx.cast();
+    let end_idx: usize = end_idx.cast();
     assert!(n > 1);
     assert!(start_idx < n && end_idx < n);
     let mut mps: Vec<Tensor> = mps_tensors.iter().map(|t| t.shallow_clone()).collect();
     let mut changed = std::collections::BTreeSet::new();
     if start_idx < end_idx {
         for idx in start_idx..end_idx {
-            let (l, r) =
-                orthogonalize_left2right_step(&mps, idx, mode, truncate_dim, normalize, check_nan);
+            let (l, r) = orthogonalize_left2right_step(
+                &mps,
+                idx.cast(),
+                mode,
+                truncate_dim,
+                normalize,
+                check_nan,
+            );
             mps[idx] = l;
             mps[idx + 1] = r;
             changed.insert(idx);
@@ -355,8 +364,14 @@ pub fn orthogonalize_arange(
         }
     } else if start_idx > end_idx {
         for idx in (end_idx + 1..=start_idx).rev() {
-            let (l, r) =
-                orthogonalize_right2left_step(&mps, idx, mode, truncate_dim, normalize, check_nan);
+            let (l, r) = orthogonalize_right2left_step(
+                &mps,
+                idx.cast(),
+                mode,
+                truncate_dim,
+                normalize,
+                check_nan,
+            );
             mps[idx - 1] = l;
             mps[idx] = r;
             changed.insert(idx - 1);
@@ -364,7 +379,7 @@ pub fn orthogonalize_arange(
         }
     }
     if return_changed {
-        (mps, Some(changed.into_iter().collect()))
+        (mps, Some(changed.into_iter().cast_items().collect()))
     } else {
         (mps, None)
     }
@@ -372,25 +387,25 @@ pub fn orthogonalize_arange(
 
 pub fn tt_decomposition(
     state: &Tensor,
-    max_rank: Option<i64>,
+    max_rank: Option<Num>,
     use_svd: bool,
-) -> (Vec<Tensor>, Vec<i64>) {
+) -> (Vec<Tensor>, Vec<Num>) {
     let clip = max_rank.is_some();
     let use_svd = if clip { true } else { use_svd };
     let shape = state.size();
-    let n_qubits = state.dim() as i64;
-    let physical_dim = shape[0];
-    let mut left_dim = 1_i64;
+    let n_qubits: Num = state.dim().cast();
+    let physical_dim: Num = shape[0].cast();
+    let mut left_dim = 1;
     let mut locals: Vec<Tensor> = Vec::new();
     let mut remained = state.shallow_clone();
-    let mut clipped: Vec<i64> = Vec::new();
+    let mut clipped: Vec<Num> = Vec::new();
     for _ in 0..(n_qubits - 1) {
         let mid_dim = physical_dim;
         if use_svd {
-            let m = remained.view([left_dim * mid_dim, -1]);
+            let m = remained.view([(left_dim * mid_dim).to_tint(), -1]);
             let (q, s, v) = m.svd(false, true);
             let (q, s, v, rank) = if let Some(maxr) = max_rank {
-                let rank = s.size()[0].min(maxr);
+                let rank = s.size()[0].min((maxr).to_tint());
                 (q.i((.., 0..rank)), s.i(0..rank), v.i(0..rank), rank)
             } else {
                 let r = s.size()[0];
@@ -399,21 +414,21 @@ pub fn tt_decomposition(
             let s = s.unsqueeze(1);
             remained = s * v;
             let new_left = rank;
-            locals.push(q.view([left_dim, mid_dim, new_left]));
-            left_dim = new_left;
+            locals.push(q.view([left_dim.to_tint(), mid_dim.to_tint(), new_left]));
+            left_dim = new_left.cast();
             if clip {
-                clipped.push(rank);
+                clipped.push(rank.cast());
             }
         } else {
-            let m = remained.view([left_dim * mid_dim, -1]);
+            let m = remained.view([(left_dim * mid_dim).to_tint(), -1]);
             let (q, r) = m.qr(false);
             remained = r;
             let new_left = remained.size()[0];
-            locals.push(q.view([left_dim, mid_dim, new_left]));
-            left_dim = new_left;
+            locals.push(q.view([left_dim.to_tint(), mid_dim.to_tint(), new_left]));
+            left_dim = new_left.cast();
         }
     }
-    locals.push(remained.view([left_dim, physical_dim, 1]));
+    locals.push(remained.view([left_dim.to_tint(), physical_dim.to_tint(), 1]));
     (locals, clipped)
 }
 
@@ -426,46 +441,46 @@ pub fn calculate_mps_norm_factors(mps: &[Tensor], efficient_open: bool) -> Tenso
     match get_mps_type(mps) {
         MPSType::Open => {
             let mut v = Tensor::ones([1, 1], (kind, device)); // a b
-            let norms = Tensor::empty([n as i64], (kind, device));
+            let norms = Tensor::empty([n.to_tint()], (kind, device));
             if efficient_open {
                 for (i, (_c, _m)) in conj.iter().zip(mps.iter()).enumerate() {
-                    v = Tensor::einsum("ab,aix->bix", &[v, _c.shallow_clone()], None::<Vec<i64>>);
-                    v = Tensor::einsum("bix,biy->xy", &[v, _m.shallow_clone()], None::<Vec<i64>>);
+                    v = Tensor::einsum("ab,aix->bix", &[v, _c.shallow_clone()], NO_OPT_PATH);
+                    v = Tensor::einsum("bix,biy->xy", &[v, _m.shallow_clone()], NO_OPT_PATH);
                     let nf = v.norm();
                     v = &v / &nf;
-                    norms.i((i as i64,)).copy_(&nf);
+                    norms.i((i.to_tint(),)).copy_(&nf);
                 }
             } else {
                 for (i, (_c, _m)) in conj.iter().zip(mps.iter()).enumerate() {
                     v = Tensor::einsum(
                         "ab,aix,biy->xy",
                         &[v, _c.shallow_clone(), _m.shallow_clone()],
-                        None::<Vec<i64>>,
+                        NO_OPT_PATH,
                     );
                     let nf = v.norm();
                     v = &v / &nf;
-                    norms.i((i as i64,)).copy_(&nf);
+                    norms.i((i.to_tint(),)).copy_(&nf);
                 }
             }
             norms
         }
         MPSType::Periodic => {
             let vdim = mps[0].size()[0];
-            let norms = Tensor::empty([n as i64], (kind, device));
+            let norms = Tensor::empty([n.to_tint()], (kind, device));
             let mut v = Tensor::eye(vdim * vdim, (kind, device)).view([vdim, vdim, vdim, vdim]);
             for (i, (_c, _m)) in conj.iter().zip(mps.iter()).enumerate() {
                 v = Tensor::einsum(
                     "uvap,adb,pdq->uvbq",
                     &[v, _c.shallow_clone(), _m.shallow_clone()],
-                    None::<Vec<i64>>,
+                    NO_OPT_PATH,
                 );
                 let nf = v.norm();
                 v = &v / &nf;
-                norms.i((i as i64,)).copy_(&nf);
+                norms.i((i.to_tint(),)).copy_(&nf);
             }
-            let final_nf = Tensor::einsum("acac->", &[v], None::<Vec<i64>>);
-            let last = norms.i((n as i64 - 1,)) * final_nf;
-            norms.i((n as i64 - 1,)).copy_(&last);
+            let final_nf = Tensor::einsum("acac->", &[v], NO_OPT_PATH);
+            let last = norms.i((n.to_tint() - 1,)) * final_nf;
+            norms.i((n.to_tint() - 1,)).copy_(&last);
             norms
         }
     }
@@ -477,7 +492,7 @@ pub fn normalize_mps(mps: &[Tensor]) -> Vec<Tensor> {
     let n = mps.len();
     let mut out: Vec<Tensor> = Vec::with_capacity(n);
     for (i, t) in mps.iter().enumerate() {
-        let f = factors.double_value(&[i as i64]);
+        let f = factors.double_value(&[i.to_tint()]);
         out.push(t * f);
     }
     out
@@ -490,24 +505,24 @@ pub fn calc_inner_product(mps0: &[Tensor], mps1: &[Tensor]) -> Tensor {
     let device = mps0[0].device();
     let v0 = Tensor::eye(mps0[0].size()[0], (kind, device));
     let v1 = Tensor::eye(mps1[0].size()[0], (kind, device));
-    let mut v = Tensor::einsum("ab,xy->axby", &[v0, v1], None::<Vec<i64>>);
-    let factors = Tensor::empty([(n as i64) + 1], (kind, device));
+    let mut v = Tensor::einsum("ab,xy->axby", &[v0, v1], NO_OPT_PATH);
+    let factors = Tensor::empty([(n.to_tint()) + 1], (kind, device));
     for (i, (m0, m1)) in mps0.iter().zip(mps1.iter()).enumerate() {
         v = Tensor::einsum(
             "uvap,adb,pdq->uvbq",
             &[v, m0.conj(), m1.shallow_clone()],
-            None::<Vec<i64>>,
+            NO_OPT_PATH,
         );
         let nf = v.norm();
         v = &v / &nf;
-        factors.i((i as i64,)).copy_(&nf);
+        factors.i((i.to_tint(),)).copy_(&nf);
     }
     let last = if v.numel() > 1 {
-        Tensor::einsum("acac->", &[v], None::<Vec<i64>>)
+        Tensor::einsum("acac->", &[v], NO_OPT_PATH)
     } else {
         v.reshape([1]).i(0)
     };
-    factors.i((n as i64,)).copy_(&last);
+    factors.i((n.to_tint(),)).copy_(&last);
     factors
 }
 
