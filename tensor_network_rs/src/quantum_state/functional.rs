@@ -76,10 +76,11 @@ pub fn calc_onsite_entanglement_entropy(
 ) -> Tensor {
     check_state_tensor(state).expect("invalid state");
     let n = state.dim().cast();
-    let indices: Vec<UIdx> = match qubit_idx {
-        None => (0..n).collect(),
-        Some(v) if !v.is_empty() => v,
-        _ => panic!("qubit_idx must be None or non-empty list"),
+    let indices: Vec<UIdx> = if let Some(v) = qubit_idx {
+        assert!(!v.is_empty(), "qubit_idx must be non-empty list");
+        v
+    } else {
+        (0..n).collect()
     };
     let mut ent: Vec<Tensor> = Vec::with_capacity(indices.len());
     for idx in indices {

@@ -91,11 +91,11 @@ pub fn pauli_operator(pauli: &str, double_precision: bool, force_complex: bool) 
     }
 }
 
+/// Create a tensor representation of the identity gate for `num_qubits`.
+///
+/// If `matrix_form` is true, returns a `[2^n, 2^n]` matrix. Otherwise returns
+/// a rank-`2n` tensor with each dimension size 2, matching the Python API.
 pub fn identity_gate_tensor(num_qubits: Num, matrix_form: bool, kind: Option<Kind>) -> Tensor {
-    /// Create a tensor representation of the identity gate for `num_qubits`.
-    ///
-    /// If `matrix_form` is true, returns a `[2^n, 2^n]` matrix. Otherwise returns
-    /// a rank-`2n` tensor with each dimension size 2, matching the Python API.
     let k = kind.unwrap_or(default_float_kind());
     let d = 1_i64 << num_qubits;
     if matrix_form {
@@ -193,16 +193,16 @@ pub fn rotate_from_scalars(
     coefficient * exp_i_phase * gamma_mat
 }
 
+/// Create a tensor (or matrix) for a controlled gate with `num_control_qubits`
+/// controls and an `applied_gate` acting on the targets.
+///
+/// Matches the Python semantics: in matrix form the block corresponding to
+/// control state `|11..1>` is replaced by `applied_gate`, and identity elsewhere.
 pub fn get_control_gate_tensor(
     num_control_qubits: Num,
     applied_gate: &Tensor,
     matrix_form: bool,
 ) -> Tensor {
-    /// Create a tensor (or matrix) for a controlled gate with `num_control_qubits`
-    /// controls and an `applied_gate` acting on the targets.
-    ///
-    /// Matches the Python semantics: in matrix form the block corresponding to
-    /// control state `|11..1>` is replaced by `applied_gate`, and identity elsewhere.
     let nq = check_quantum_gate(applied_gate, None, false).expect("invalid gate");
     let t = if applied_gate.dim() > 2 {
         let d = 1_i64 << nq;
