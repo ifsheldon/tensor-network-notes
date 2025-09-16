@@ -1,28 +1,29 @@
+use crate::types::*;
 use crate::utils::checking::{check_quantum_gate, check_state_tensor};
 use crate::utils::einsum::named_einsum;
 use tch::{Kind, Tensor};
 
-pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<i64>) -> Tensor {
+pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<UIdx>) -> Tensor {
     // Normalize qubit list
     let keep = qubit_idx;
     if keep.is_empty() {
         panic!("qubit_idx must be non-empty");
     }
-    let num_qubits = state.dim() as i64;
+    let num_qubits = state.dim().cast();
     for &qi in &keep {
-        assert!((0..num_qubits).contains(&qi), "qubit_idx out of range");
+        assert!(qi < num_qubits, "qubit_idx out of range");
     }
     let mut keep_sorted = keep.clone();
     keep_sorted.sort_unstable();
     // Build permutation: [keep..., reduce...]
-    let mut reduce: Vec<i64> = (0..num_qubits).collect();
+    let mut reduce: Vec<UIdx> = (0..num_qubits).collect();
     for &k in &keep_sorted {
         reduce.retain(|&x| x != k);
     }
     let mut perm = keep_sorted.clone();
     perm.extend(reduce.iter());
-    let s = state.permute(&perm);
-    let k = keep_sorted.len() as i64;
+    let s = state.permute(perm.into_iter().cast_items().collect::<Vec<_>>());
+    let k: UIdx = keep_sorted.len().cast();
     let d_keep = 1_i64 << k;
     let d_red = 1_i64 << (num_qubits - k);
     let s2 = s.reshape([d_keep, d_red]);
@@ -34,10 +35,10 @@ pub fn calc_reduced_density_matrix(state: &Tensor, qubit_idx: Vec<i64>) -> Tenso
 pub fn calc_observation(
     state: &Tensor,
     operator: &Tensor,
-    qubit_idx: Vec<i64>,
+    qubit_idx: Vec<UIdx>,
     fast_mode: bool,
 ) -> Tensor {
-    let len = qubit_idx.len() as i64;
+    let len: Num = qubit_idx.len().cast();
     let rdm = calc_reduced_density_matrix(state, qubit_idx);
     let nq = check_quantum_gate(operator, None, false).expect("invalid operator");
     assert_eq!(nq, len, "operator qubit count mismatch");

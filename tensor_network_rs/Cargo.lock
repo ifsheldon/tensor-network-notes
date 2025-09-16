@@ -597,6 +597,7 @@ dependencies = [
 name = "tensor_network_rs"
 version = "0.1.0"
 dependencies = [
+ "num-traits",
  "tch",
  "warrant",
 ]

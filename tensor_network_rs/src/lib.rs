@@ -20,6 +20,7 @@ pub mod algorithms {
 }
 pub mod feature_mapping;
 pub mod utils;
+pub mod types;
 
 #[cfg(test)]
 mod tests {

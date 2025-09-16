@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use tch::{Kind, Tensor};
 use warrant::warrant;
+use crate::types::*;
 
 /// Return true if two slices share any element in common.
 pub fn iterable_have_common(a: &[i64], b: &[i64]) -> bool {
@@ -27,13 +28,13 @@ pub fn check_state_tensor(t: &Tensor) -> Result<(), String> {
 /// Validate a quantum gate tensor. Returns the inferred/validated number of qubits.
 pub fn check_quantum_gate(
     t: &Tensor,
-    num_qubits: Option<i64>,
+    num_qubits: Option<Num>,
     assert_tensor_form: bool,
-) -> Result<i64, String> {
+) -> Result<Num, String> {
     warrant!(matches!(t.kind(), Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble), else {
         return Err("quantum_gate must be a float or complex tensor".into());
     });
-    let ndim = t.dim();
+    let ndim: Num = t.dim().cast();
     warrant!(ndim >= 2, else {
         return Err("quantum_gate must be a tensor with at least two dimensions".into());
     });
@@ -59,7 +60,7 @@ pub fn check_quantum_gate(
             warrant!(2_i64.pow(pow) == m, else {
                 return Err(format!("matrix dim {} is not 2^k", m));
             });
-            pow as i64
+            pow.cast()
         };
         if assert_tensor_form && nq > 1 {
             return Err("Quantum gate should be in tensor form".into());
@@ -70,8 +71,8 @@ pub fn check_quantum_gate(
         warrant!(sizes.iter().all(|&d| d == 2), else {
             return Err("gate tensor must have all dimensions of size 2".into());
         });
-        let nq = num_qubits.unwrap_or((ndim / 2) as i64);
-        warrant!(ndim == 2 * (nq as usize), else {
+        let nq = num_qubits.unwrap_or(ndim / 2);
+        warrant!(ndim == 2 * nq, else {
             return Err(format!(
                 "gate tensor must have 2 * num_qubits dimensions, got {}",
                 ndim

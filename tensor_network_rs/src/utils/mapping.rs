@@ -1,15 +1,17 @@
-use crate::utils::checking::check_quantum_gate;
+use crate::{types::*, utils::checking::check_quantum_gate};
 use tch::{Kind, Tensor};
 
 /// Inverse a permutation.
-pub fn inverse_permutation(permutation: &[i64]) -> Vec<i64> {
-    let permutation = Tensor::from_slice(permutation);
+pub fn inverse_permutation(permutation: &[UIdx]) -> Vec<UIdx> {
+    let perm: Vec<Idx> = permutation.iter().copied().cast_items().collect();
+    let permutation = Tensor::from_slice(&perm);
     let mut inv = Tensor::empty_like(&permutation);
     let arange = Tensor::arange(
         permutation.size1().unwrap(),
         (permutation.kind(), permutation.device()),
     );
-    inv.scatter_(0, &permutation, &arange).try_into().unwrap()
+    let v: Vec<Idx> = inv.scatter_(0, &permutation, &arange).try_into().unwrap();
+    v.into_iter().cast_items().collect()
 }
 
 /// Unify the dtypes of two tensors to the most appropriate type.
@@ -83,7 +85,7 @@ pub fn view_gate_tensor_as_matrix(t: &Tensor, num_qubit: Option<i64>) -> Tensor 
         t.size().iter().all(|&d| d == 2),
         "Tensor dimensions must be 2"
     );
-    let qubit_count = check_quantum_gate(t, num_qubit, true).expect("invalid gate tensor");
+    let qubit_count = check_quantum_gate(t, num_qubit.cast(), true).expect("invalid gate tensor");
     let d = 1_i64 << qubit_count; // 2^q
     t.view([d, d])
 }
@@ -100,7 +102,7 @@ pub fn view_gate_matrix_as_tensor(t: &Tensor, num_qubit: Option<i64>) -> Tensor 
     assert!(t.dim() == 2, "Matrix must have 2 dimensions");
     let sz = t.size();
     assert!(sz[0] == sz[1], "Matrix must be square");
-    let qubit_count = check_quantum_gate(t, num_qubit, false).expect("invalid gate matrix");
+    let qubit_count = check_quantum_gate(t, num_qubit.cast(), false).expect("invalid gate matrix");
     let dims = vec![2_i64; (qubit_count * 2) as usize];
     t.view(&dims[..])
 }
