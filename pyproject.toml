@@ -16,7 +16,7 @@ mlx = ["mlx>=0.28.0"]
 
 [dependency-groups]
 
-torch = ["torch>=2.8.0", "torchmetrics>=1.8.0", "torchvision>=0.23.0"]
+torch = ["torch>=2.9.0", "torchmetrics>=1.8.0", "torchvision>=0.24.0"]
 
 dev = [
     "dowhen>=0.1.0",
@@ -58,7 +58,7 @@ explicit = true
 
 [[tool.uv.index]]
 name = "torch-gpu"
-url = "https://download.pytorch.org/whl/cu128"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [build-system]
