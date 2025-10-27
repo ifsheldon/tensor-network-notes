@@ -421,7 +421,7 @@ pub fn train_gmps(
 
 /// Generate a sample using a GMPS by sequentially measuring sites.
 /// If `sample` and `gen_indices` are provided, projects non-generated sites using the provided feature mapping
-/// and generates only on `gen_indices`. Returns the average over `sample_num` draws as a length-L float tensor in [0,1].
+/// and generates only on `gen_indices`. Returns the average over `sample_num` draws as a length-L float tensor in \[0,1\].
 pub fn generate_sample_with_gmps(
     mps: &MPS,
     sample: Option<&Tensor>, // [L] or [1,L] with values in [0,1] for feature mapping
