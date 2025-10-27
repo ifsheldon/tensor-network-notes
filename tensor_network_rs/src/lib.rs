@@ -18,6 +18,7 @@ pub mod algorithms {
     pub mod time_evolving_block_decimation;
 }
 pub mod feature_mapping;
+pub mod lecture_code;
 pub mod utils;
 
 #[cfg(test)]
