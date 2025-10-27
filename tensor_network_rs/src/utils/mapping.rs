@@ -17,15 +17,21 @@ pub fn inverse_permutation(permutation: &[UIdx]) -> Vec<UIdx> {
 /// Unify the dtypes of two tensors to the most appropriate type.
 pub fn unify_tensor_dtypes(t1: &Tensor, t2: &Tensor) -> (Tensor, Tensor) {
     let k1 = t1.kind();
-    let k2 = t2.kind();
-    let valid = matches!(
-        k1,
-        Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble
-    ) && matches!(
-        k2,
-        Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble
+    assert!(
+        matches!(
+            k1,
+            Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble
+        ),
+        "quantum_state must be a float or complex tensor, got {k1:?}"
     );
-    assert!(valid, "quantum_state must be a float or complex tensor");
+    let k2 = t2.kind();
+    assert!(
+        matches!(
+            k2,
+            Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble
+        ),
+        "quantum_state must be a float or complex tensor, got {k2:?}"
+    );
     if k1 == k2 {
         return (t1.shallow_clone(), t2.shallow_clone());
     }
