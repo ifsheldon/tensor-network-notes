@@ -11,16 +11,16 @@ pub fn iterable_have_common(a: &[i64], b: &[i64]) -> bool {
 
 /// Validate a tensor as a quantum state tensor: ndim>0 and every dim equals 2
 /// and dtype is float or complex.
-pub fn check_state_tensor(t: &Tensor) -> Result<(), String> {
+pub fn check_state_tensor(t: &Tensor) -> Result<()> {
     warrant!(matches!(t.kind(), Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble), else {
-        return Err("quantum_state must be a float or complex tensor".into());
+        bail!("quantum_state must be a float or complex tensor");
     });
     let size = t.size();
     if size.is_empty() {
-        return Err("quantum_state must be a tensor with at least one dimension".into());
+        bail!("quantum_state must be a tensor with at least one dimension");
     }
     warrant!(size.iter().all(|&d| d == 2), else {
-        return Err("quantum_state must be a tensor with all dimensions of size 2".into());
+        bail!("quantum_state must be a tensor with all dimensions of size 2");
     });
     Ok(())
 }
@@ -30,16 +30,16 @@ pub fn check_quantum_gate(
     t: &Tensor,
     num_qubits: Option<Num>,
     assert_tensor_form: bool,
-) -> Result<Num, String> {
+) -> Result<Num> {
     warrant!(matches!(t.kind(), Kind::Float | Kind::Double | Kind::ComplexFloat | Kind::ComplexDouble), else {
-        return Err("quantum_gate must be a float or complex tensor".into());
+        bail!("quantum_gate must be a float or complex tensor");
     });
     let ndim: Num = t.dim().cast();
     warrant!(ndim >= 2, else {
-        return Err("quantum_gate must be a tensor with at least two dimensions".into());
+        bail!("quantum_gate must be a tensor with at least two dimensions");
     });
     warrant!(ndim % 2 == 0, else {
-        return Err("quantum_gate must have an even number of dimensions".into());
+        bail!("quantum_gate must have an even number of dimensions");
     });
 
     let sizes = t.size();
@@ -48,35 +48,35 @@ pub fn check_quantum_gate(
         let m = sizes[0];
         let n = sizes[1];
         warrant!(m == n, else {
-            return Err("gate must be a square matrix".into());
+            bail!("gate must be a square matrix");
         });
         let nq = if let Some(nq) = num_qubits {
             warrant!(m == 2_i64.pow(nq as u32), else {
-                return Err(format!("gate must be a square matrix with dimensions 2^num_qubits, got {m}x{m}"));
+                bail!("gate must be a square matrix with dimensions 2^num_qubits, got {m}x{m}");
             });
             nq
         } else {
             let pow = m.ilog2();
             warrant!(2_i64.pow(pow) == m, else {
-                return Err(format!("matrix dim {} is not 2^k", m));
+                bail!("matrix dim {} is not 2^k", m);
             });
             pow.cast()
         };
         if assert_tensor_form && nq > 1 {
-            return Err("Quantum gate should be in tensor form".into());
+            bail!("Quantum gate should be in tensor form");
         }
         Ok(nq)
     } else {
         // in tensor form
         warrant!(sizes.iter().all(|&d| d == 2), else {
-            return Err("gate tensor must have all dimensions of size 2".into());
+            bail!("gate tensor must have all dimensions of size 2");
         });
         let nq = num_qubits.unwrap_or(ndim / 2);
         warrant!(ndim == 2 * nq, else {
-            return Err(format!(
+            bail!(
                 "gate tensor must have 2 * num_qubits dimensions, got {}",
                 ndim
-            ));
+            );
         });
         Ok(nq)
     }

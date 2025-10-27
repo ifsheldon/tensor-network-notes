@@ -76,5 +76,6 @@ mod tests {
     fn test_num_cast() {
         let a = -1;
         let b: Num = a.cast();
+        dbg!(b);
     }
 }

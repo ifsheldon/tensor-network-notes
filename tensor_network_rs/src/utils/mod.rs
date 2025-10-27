@@ -10,6 +10,8 @@ pub use einsum::*;
 pub use mapping::*;
 pub use types::*;
 
+pub use anyhow::{Result, bail};
+
 use tch::{Kind, Tensor};
 
 /// Set global random seed for tch/LibTorch operations.
