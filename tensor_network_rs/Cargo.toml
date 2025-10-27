@@ -5,5 +5,5 @@ edition = "2024"
 
 [dependencies]
 num-traits = "0.2.19"
-tch = { version =  "0.21.0", git = "https://github.com/LaurentMazare/tch-rs.git" }
+tch = { version =  "0.22.0" }
 warrant = "0.2"
