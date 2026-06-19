@@ -1,11 +1,11 @@
 [project]
 name = "tensor-network-code"
-version = "0.2.0" # finished all from Lecture 1.1 to 5.2
+version = "0.2.1" # finished all from Lecture 1.1 to 5.2
 description = "Tensor Network Code"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "einops",
+    "einops>=0.8.2",
     "numpy>=2.2.3",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
@@ -44,7 +44,6 @@ mlx = [
 
 
 [tool.uv.sources]
-einops = { git = "https://github.com/ifsheldon/einops", branch = "mlx-backend" }
 torch = [
     { index = "torch-cpu", marker = "platform_system == 'Darwin'" },
     { index = "torch-gpu", marker = "platform_system == 'Linux'" },
@@ -58,7 +57,7 @@ explicit = true
 
 [[tool.uv.index]]
 name = "torch-gpu"
-url = "https://download.pytorch.org/whl/cu130"
+url = "https://download.pytorch.org/whl/cu132"
 explicit = true
 
 [build-system]
