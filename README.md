@@ -29,6 +29,23 @@ poe lab
 uv run poe lab
 ```
 
+## Rust Experiments
+
+The repository also contains a Cargo library crate named `tensor-network-code` in `rust/` for step-by-step Rust experiments.
+
+Useful commands:
+* `cd rust && cargo test`: run the Rust tests
+* `poe rustdoc`: build the Rust API documentation, copy local image assets, and print the local serving path
+* `cd rust && cargo doc --no-deps`: build the Rust API documentation
+
+When serving the generated Rust docs with `dufs`, serve `rust/target/doc` as the web root and open `/tensor_network_code/index.html`.
+For example, run `dufs rust/target/doc -p 5000`, then open `http://HOST:5000/tensor_network_code/index.html`.
+
+The initial rustdoc experiments live in standard Rust doc comments in `rust/src/lib.rs`.
+Images use normal Markdown links like `![image](images/image.png)` and reference the shared `images/` directory through `rust/images`.
+The local image assets are copied into the generated rustdoc directory by `poe rustdoc`.
+Equations are rendered by MathJax through `rust/.cargo/config.toml` and `rust/docs/rustdoc-header.html`.
+
 ## Trained MPS Checkpoints
 
 See [the repo](https://huggingface.co/mapleL/mnist_mps) on Huggingface.

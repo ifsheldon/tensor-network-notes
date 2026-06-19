@@ -14,3 +14,8 @@ wheels/
 draft.ipynb
 datasets
 .env
+
+# Added by cargo
+
+/target
+/rust/target
