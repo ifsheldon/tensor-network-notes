@@ -1,3 +1,6 @@
 [submodule "reference_code"]
 	path = reference_code
 	url = git@github.com:ifsheldon/Python-for-Tensor-Network-Tutorial.git
+[submodule "rust/tch-rs"]
+	path = rust/tch-rs
+	url = git@github.com:ifsheldon/tch-rs.git

@@ -7,7 +7,8 @@ This repo contains my notes and code related to the course [Tensor Network](http
 This is a [`uv`](https://github.com/astral-sh/uv) project. Setting up the environment is easy:
 
 1. If you have not got `uv` installed, follow the [instructions](https://docs.astral.sh/uv/getting-started/installation/) to install it.
-2. Run `uv sync` to create an environment and get dependencies, including development dependencies that you need to run the code in a notebook.
+2. Run `git submodule update --init --recursive` to fetch the reference code and Rust `tch-rs` fork.
+3. Run `uv sync` to create an environment and get dependencies, including development dependencies that you need to run the code in a notebook.
 
 ## Run Tools
 
@@ -34,9 +35,10 @@ uv run poe lab
 The repository also contains a Cargo library crate named `tensor-network-code` in `rust/` for step-by-step Rust experiments.
 
 Useful commands:
-* `cd rust && cargo test`: run the Rust tests
+* `poe rusttest`: run the Rust tests
 * `poe rustdoc`: build the Rust API documentation, copy local image assets, and print the local serving path
 * `cd rust && cargo doc --no-deps`: build the Rust API documentation
+* `poe rusttest_interop`: run the optional PyTorch-to-`tch-rs` tensor interop experiment with the pinned `uv` Torch environment
 
 When serving the generated Rust docs with `dufs`, serve `rust/target/doc` as the web root and open `/tensor_network_code/index.html`.
 For example, run `dufs rust/target/doc -p 5000`, then open `http://HOST:5000/tensor_network_code/index.html`.
@@ -45,6 +47,8 @@ The initial rustdoc experiments live in standard Rust doc comments in `rust/src/
 Images use normal Markdown links like `![image](images/image.png)` and reference the shared `images/` directory through `rust/images`.
 The local image assets are copied into the generated rustdoc directory by `poe rustdoc`.
 Equations are rendered by MathJax through `rust/.cargo/config.toml` and `rust/docs/rustdoc-header.html`.
+The PyTorch interop experiment is behind Cargo feature `python-interop` because it needs `tch`, `LIBTORCH_USE_PYTORCH=1`, an embeddable CPython 3.12 interpreter, and the Torch package installed by `uv`.
+The Rust crate uses the patched `tch 0.25.1` fork pinned as the `rust/tch-rs` submodule so it can build against the repo's `torch==2.12.1` Python dependency.
 
 ## Trained MPS Checkpoints
 

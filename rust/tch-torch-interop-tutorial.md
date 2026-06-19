@@ -1,24 +1,31 @@
-**Tutorial: Comparing Python PyTorch Tensors With `tch-rs` Using `pyo3-tch`**
+**Tutorial: Comparing Python PyTorch Tensors With `tch-rs`**
 
 Goal: call Python PyTorch code from a Rust test, convert the resulting `torch.Tensor` into a `tch::Tensor`, run the Rust implementation, and compare the tensors in Rust.
 
 **Mental Model**
 
-`pyo3-tch` provides `PyTensor`, a small wrapper around `tch::Tensor`. It implements PyO3 conversions so a Python `torch.Tensor` can be extracted into Rust as a `tch::Tensor`.
+`pyo3-tch` provides `PyTensor`, a small wrapper around `tch::Tensor`. It implements PyO3 conversions so a Python `torch.Tensor` can be extracted into Rust as a `tch::Tensor`, and its implementation shows the lower-level bridge used by this repo.
 
 Do not use `tensor.data_ptr()` for this. A PyTorch tensor is not just memory. It includes dtype, shape, strides, device, storage ownership, and autograd metadata. `pyo3-tch` uses PyTorch’s own Python/C++ tensor bridge instead.
 
 As of the current crate docs, `pyo3-tch 0.24.0` depends on `pyo3 0.24`, `tch 0.24.0`, and `torch-sys 0.24.0`.
+This repository uses the patched `tch 0.25.1` fork pinned at `rust/tch-rs`, because the crates.io release was not available and the fork has the PyTorch 2.12.1 update.
 
 **Cargo Setup**
 
-Use the `tch` re-export from `pyo3-tch` to avoid accidentally mixing incompatible `tch` versions.
+The direct embedding path used by this repository pins `pyo3` and `tch` directly.
 
 ```toml
-[dev-dependencies]
-pyo3 = { version = "0.24", features = ["auto-initialize"] }
-pyo3-tch = "0.24"
+[features]
+python-interop = ["dep:pyo3", "dep:tch"]
+
+[dependencies]
+pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
+tch = { path = "tch-rs", features = ["python-extension"], optional = true }
 ```
+
+In this repository the dependencies are optional normal dependencies behind Cargo feature `python-interop`, so regular Rust tests do not need to build or link libtorch.
+The actual experiment uses `tch::Tensor::pyobject_unpack` directly instead of `pyo3-tch::PyTensor`, because `pyo3-tch 0.24.0` enables PyO3's `extension-module` feature and that fails when this crate embeds Python from a Rust test.
 
 Run tests against the same Python environment that has `torch` installed:
 
@@ -26,18 +33,33 @@ Run tests against the same Python environment that has `torch` installed:
 LIBTORCH_USE_PYTORCH=1 PYO3_PYTHON="$(uv run python -c 'import sys; print(sys.executable)')" cargo test
 ```
 
+The repository wrapper for the interop experiment is:
+
+```bash
+poe rusttest_interop
+```
+
 `LIBTORCH_USE_PYTORCH=1` is important: it tells `tch` to link against the active Python PyTorch installation, reducing ABI/version mismatch risk.
+On this machine the wrapper embeds `/usr/bin/python3.12`, then prepends the uv environment's `site-packages` to `PYTHONPATH` so `torch` still comes from the pinned project environment.
+This avoids a uv standalone Python embedding issue where `_ctypes` is available to the `uv run python` executable but not to the embedded libpython runtime.
 
 **Rust Test Pattern**
 
 ```rust
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use pyo3_tch::{tch::Tensor, PyTensor};
 use std::ffi::CString;
+use tch::Tensor;
 
 fn rust_impl(x: &Tensor) -> Tensor {
     x.sin() + 2.0
+}
+
+fn extract_torch_tensor(ob: &Bound<'_, PyAny>) -> PyResult<Tensor> {
+    let ptr = ob.as_ptr() as *mut tch::python::CPyObject;
+    let tensor = unsafe { Tensor::pyobject_unpack(ptr) }
+        .map_err(|err| pyo3::exceptions::PyValueError::new_err(format!("{err:?}")))?;
+    tensor.ok_or_else(|| pyo3::exceptions::PyTypeError::new_err("expected a torch.Tensor"))
 }
 
 #[test]
@@ -60,29 +82,25 @@ with torch.inference_mode():
 
         py.run(code.as_c_str(), None, Some(&locals))?;
 
-        let x: PyTensor = locals
-            .get_item("x")?
-            .expect("Python fixture missing x")
-            .extract()?;
+        let x = extract_torch_tensor(&locals.get_item("x")?.expect("Python fixture missing x"))?;
+        let expected = extract_torch_tensor(
+            &locals
+                .get_item("expected")?
+                .expect("Python fixture missing expected"),
+        )?;
 
-        let expected: PyTensor = locals
-            .get_item("expected")?
-            .expect("Python fixture missing expected")
-            .extract()?;
+        let actual = rust_impl(&x);
 
-        let actual = rust_impl(&x.0);
-
-        assert_eq!(actual.size(), expected.0.size());
-        assert_eq!(actual.kind(), expected.0.kind());
+        assert_eq!(actual.size(), expected.size());
+        assert_eq!(actual.kind(), expected.kind());
 
         let rtol = 1e-5;
         let atol = 1e-8;
-        let max_abs_diff = (&actual - &expected.0).abs().max().double_value(&[]);
+        let max_abs_diff = (&actual - &expected).abs().max().double_value(&[]);
 
         assert!(
-            actual.allclose(&expected.0, rtol, atol, false),
-            "tensor mismatch; max_abs_diff={max_abs_diff}\nactual={actual:?}\nexpected={:?}",
-            expected.0
+            actual.allclose(&expected, rtol, atol, false),
+            "tensor mismatch; max_abs_diff={max_abs_diff}\nactual={actual:?}\nexpected={expected:?}",
         );
 
         Ok(())
@@ -92,10 +110,10 @@ with torch.inference_mode():
 
 **Agent Checklist**
 
-1. Pin `pyo3`, `pyo3-tch`, and `tch` to compatible versions.
-2. Use `pyo3_tch::tch::Tensor`, or ensure the project’s direct `tch` dependency exactly matches `pyo3-tch`.
+1. Pin `pyo3` and `tch` to compatible versions.
+2. If using `pyo3-tch`, use its `tch` re-export; otherwise make the direct `tch` dependency exact.
 3. Always acquire the Python GIL before touching Python objects.
-4. Extract Python tensors with `.extract::<PyTensor>()`.
+4. Extract Python tensors with `.extract::<PyTensor>()` or `Tensor::pyobject_unpack`.
 5. Use `.detach().cpu().contiguous()` in Python test code unless CUDA, gradients, or strides are part of the behavior under test.
 6. Compare `size()`, `kind()`, then `allclose()`.
 7. Print `max_abs_diff` on failure.

@@ -3,4 +3,10 @@ name = "tensor-network-code"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+python-interop = ["dep:pyo3", "dep:tch"]
+
 [dependencies]
+pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
+tch = { path = "tch-rs", features = ["python-extension"], optional = true }
