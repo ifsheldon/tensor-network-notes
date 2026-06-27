@@ -3,7 +3,7 @@
 # %% auto #0
 __all__ = ['calc_ground_state']
 
-# %% ../../2-8-calc-ground-state.ipynb #baea0450
+# %% ../../2-8-calc-ground-state.ipynb #ec82a47a
 import torch
 import numpy as np
 from einops import einsum
@@ -12,7 +12,7 @@ from ..utils.checking import check_quantum_gate
 from scipy.sparse.linalg import LinearOperator, eigsh
 from copy import deepcopy
 
-# %% ../../2-8-calc-ground-state.ipynb #3b1ab783
+# %% ../../2-8-calc-ground-state.ipynb #9b44b987
 def calc_ground_state(
     hamiltonian: torch.Tensor | List[torch.Tensor],
     interact_positions: List[List[int]] | torch.Tensor,

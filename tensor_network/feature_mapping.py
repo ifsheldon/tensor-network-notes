@@ -44,7 +44,7 @@ def cossin_feature_map(
 
     return stacked_features
 
-# %% ../3-6.ipynb #29242036
+# %% ../3-6.ipynb #48a7080b
 from einops import einsum
 
 
@@ -67,7 +67,7 @@ def feature_map_to_qubit_state(features: torch.Tensor) -> torch.Tensor:
     qubit_states = einsum(*features, einsum_expression)  # (batch_size, 2, ..., 2)
     return qubit_states
 
-# %% ../4-4.ipynb #c5385c30
+# %% ../4-4.ipynb #f1989c23
 def linear_mapping(samples: torch.Tensor) -> torch.Tensor:
     """
     Apply linear feature mapping

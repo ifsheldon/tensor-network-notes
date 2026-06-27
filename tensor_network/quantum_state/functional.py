@@ -68,7 +68,7 @@ def calc_observation(
     else:
         return torch.trace(reduced_density_matrix @ operator_mat)
 
-# %% ../../4-10.ipynb #78a1bcdb
+# %% ../../4-10.ipynb #6b23fa2a
 from ..utils.checking import check_state_tensor
 from .functional import calc_reduced_density_matrix
 from ..utils.devices import linalg_work_device
@@ -133,7 +133,7 @@ def project_state(
     new_state = new_state / new_state.norm()
     return new_state
 
-# %% ../../5-2.ipynb #b7b24dc8
+# %% ../../5-2.ipynb #f9298aea
 from math import prod
 from ..utils.devices import linalg_work_device
 

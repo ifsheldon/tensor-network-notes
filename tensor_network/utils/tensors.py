@@ -128,7 +128,7 @@ def rescale_tensor(
     normalized_tensor = normalize_tensor(tensor, dim)
     return normalized_tensor * (max_val - min_val) + min_val
 
-# %% ../../tensor_product_experiments.ipynb #fe103eb0
+# %% ../../tensor_product_experiments.ipynb #6aa345bb
 from einops import einsum
 from typing import List, Set
 from random import randint

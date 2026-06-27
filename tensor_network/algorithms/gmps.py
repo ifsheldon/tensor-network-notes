@@ -5,7 +5,7 @@
 # %% auto #0
 __all__ = ['EPS', 'calc_left_to_right_step', 'calc_right_to_left_step', 'calc_nll', 'calc_gradient', 'eval_nll', 'train_gmps', 'labels_to_binary', 'prepend_labels', 'generate_sample_with_gmps', 'gmps_classify', 'eval_nll_selected_features', 'gmps_classify_with_selected_features']
 
-# %% ../../4-5.ipynb #daa06c6b
+# %% ../../4-5.ipynb #75fe5e15
 import torch
 from ..mps.modules import MPS, MPSType
 from einops import einsum
@@ -13,7 +13,7 @@ from tqdm.auto import tqdm
 from typing import Tuple, List, Dict, Any
 from torch.utils.data import DataLoader, TensorDataset
 
-# %% ../../4-5.ipynb #99fdf975
+# %% ../../4-5.ipynb #ddbe20ad
 EPS = 1e-14
 
 
@@ -352,7 +352,7 @@ def train_gmps(
 
     return torch.stack(nll_losses), mps
 
-# %% ../../4-5.ipynb #a264db6e
+# %% ../../4-5.ipynb #74d29a05
 def labels_to_binary(labels: torch.Tensor, num_bits: int) -> torch.Tensor:
     """
     Converts a tensor of labels to a binary representation.
@@ -391,7 +391,7 @@ def prepend_labels(raw_images: torch.Tensor, labels: torch.Tensor) -> torch.Tens
     bin_labels = labels_to_binary(labels, num_bits=4).to(dtype=raw_images.dtype)  # (batch, 4)
     return torch.cat([bin_labels, raw_images], dim=1)
 
-# %% ../../4-6.ipynb #0de2ead2
+# %% ../../4-6.ipynb #eb14ee8b
 import numpy as np
 from ..feature_mapping import cossin_feature_map
 from copy import deepcopy
@@ -514,7 +514,7 @@ def generate_sample_with_gmps(
     generated_sample = samples.mean(dim=0)
     return generated_sample
 
-# %% ../../4-7.ipynb #77d90e0c
+# %% ../../4-7.ipynb #e775a0ad
 from tqdm.auto import tqdm
 
 
@@ -546,7 +546,7 @@ def gmps_classify(
     predictions = torch.argmin(nll_of_gmps, dim=1)  # (batch)
     return predictions
 
-# %% ../../4-9.ipynb #ea7190c2
+# %% ../../4-9.ipynb #b1ddbbf2
 from typing import Literal
 
 
@@ -757,7 +757,7 @@ def eval_nll_selected_features(
         nll = calc_nll(norm_factors)  # (batch)
     return nll
 
-# %% ../../4-9.ipynb #427df52a
+# %% ../../4-9.ipynb #eb46ad56
 import torch.multiprocessing as mp
 from typing import Dict, Any
 from ..utils.checking import is_notebook

@@ -5,7 +5,7 @@
 # %% auto #0
 __all__ = ['gpu', 'cpu', 'ADQCRNN', 'series_sin_cos', 'prepare_series_samples']
 
-# %% ../../3-6.ipynb #a35de1cc
+# %% ../../3-6.ipynb #07b3fca8
 import torch
 import os
 from ..utils.devices import as_numpy, get_torch_device
@@ -14,7 +14,7 @@ from ..utils.devices import as_numpy, get_torch_device
 gpu = get_torch_device(os.environ.get("TN_TORCH_DEVICE", "auto"))
 cpu = torch.device("cpu")
 
-# %% ../../3-6.ipynb #2dcb80a4
+# %% ../../3-6.ipynb #11aa8f23
 from typing import Literal
 from .adqc import ADQCNet
 from ..utils.tensors import zeros_state
@@ -158,7 +158,7 @@ class ADQCRNN(nn.Module):
         prob_of_projected_feature_state = norms.squeeze(1)  # (batch_size,)
         return prob_of_projected_feature_state
 
-# %% ../../3-6.ipynb #9ad918c5
+# %% ../../3-6.ipynb #00a8b3b8
 def series_sin_cos(
     length: int, coeff_sin: torch.Tensor, coeff_cos: torch.Tensor, k_step: float = 0.02
 ) -> torch.Tensor:
@@ -189,7 +189,7 @@ def series_sin_cos(
     series = y_sin + y_cos  # (length,)
     return series
 
-# %% ../../3-6.ipynb #c18e7c5e
+# %% ../../3-6.ipynb #0145f69a
 def prepare_series_samples(
     series: torch.Tensor, sample_length: int, step_size: int
 ) -> torch.Tensor:

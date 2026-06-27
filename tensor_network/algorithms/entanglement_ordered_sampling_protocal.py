@@ -5,13 +5,13 @@
 # %% auto #0
 __all__ = ['entanglement_ordered_sampling_protocal']
 
-# %% ../../4-11.ipynb #c7c9cb38
+# %% ../../4-11.ipynb #4ecb3d8b
 import torch
 from ..mps.modules import MPS
 from typing import Dict, Any
 from tqdm.auto import tqdm
 
-# %% ../../4-11.ipynb #0b89ea15
+# %% ../../4-11.ipynb #1f8fcb35
 def _remove_at(tensor: torch.Tensor, idx: int) -> torch.Tensor:
     return torch.cat([tensor[:idx], tensor[idx + 1 :]])
 

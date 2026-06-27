@@ -436,7 +436,7 @@ def __apply_gate_for_vmap(
 
 apply_gate_batched_with_vmap = torch.vmap(__apply_gate_for_vmap, in_dims=(0, None))
 
-# %% ../../3-8.ipynb #2ea0febd
+# %% ../../3-8.ipynb #4423b1ad
 from einops import rearrange
 from ..utils.checking import check_quantum_gate
 
@@ -492,7 +492,7 @@ def gate_outer_product(*gates: torch.Tensor, matrix_form: bool = False) -> torch
         gate_product = rearrange(gate_product, f"{output_expression} -> ({left_exp}) ({right_exp})")
     return gate_product
 
-# %% ../../3-8.ipynb #067e3fbf
+# %% ../../3-8.ipynb #f4cd87db
 def spin_operator(
     direction: Literal["X", "Y", "Z", "ID"], device: torch.device | None = None
 ):
@@ -508,7 +508,7 @@ def spin_operator(
         return pauli_operator(pauli="ID", device=device)
     return pauli_operator(pauli=direction, device=device) / 2
 
-# %% ../../tensor_gate_extra.ipynb #8e2ce0b5
+# %% ../../tensor_gate_extra.ipynb #110237dd
 from itertools import product
 
 
@@ -543,7 +543,7 @@ def identity_gate_tensor(
             tensor[indices] = 1
         return tensor
 
-# %% ../../tensor_gate_extra.ipynb #9602d129
+# %% ../../tensor_gate_extra.ipynb #59c3e43f
 from ..utils.checking import check_quantum_gate
 
 
@@ -593,7 +593,7 @@ def get_control_gate_tensor(
         tensor[index] = applied_gate
         return tensor
 
-# %% ../../tensor_gate_extra.ipynb #ef51ff2b
+# %% ../../tensor_gate_extra.ipynb #e44896d2
 from ..utils.devices import linalg_work_device
 
 def rand_unitary(

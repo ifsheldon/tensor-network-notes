@@ -3,11 +3,11 @@
 # %% auto #0
 __all__ = ['lazy_classify']
 
-# %% ../../4-8-lazy-classifier.ipynb #6b7b0e0b
+# %% ../../4-8-lazy-classifier.ipynb #6ea34588
 import torch
 from typing import Literal
 
-# %% ../../4-8.ipynb #24d54f37
+# %% ../../4-8.ipynb #fc46c6a1
 from typing import Dict, Any
 from tensor_network.algorithms.quantum_kernels import (
     metric_neg_log_cos_sin,

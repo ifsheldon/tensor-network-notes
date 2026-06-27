@@ -5,12 +5,12 @@
 # %% auto #0
 __all__ = ['PolarizationGate', 'ADQCTimeEvolution']
 
-# %% ../../3-8.ipynb #caf67ca9
+# %% ../../3-8.ipynb #3fb259d8
 import torch
 from einops import einsum
 from torch import nn
 
-# %% ../../3-8.ipynb #f2265ba5
+# %% ../../3-8.ipynb #46fb12f5
 from torch import Tensor
 from .adqc import ADQCNet
 from ..tensor_gates.modules import ParameterizedGate, SimpleGate

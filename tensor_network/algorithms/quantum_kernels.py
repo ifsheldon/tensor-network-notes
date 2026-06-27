@@ -5,7 +5,7 @@
 # %% auto #0
 __all__ = ['metric_matrix_neg_log_cos_sin', 'metric_neg_log_cos_sin', 'metric_neg_chebyshev', 'metric_neg_cossin_chebyshev']
 
-# %% ../../4-8.ipynb #5ddc5612
+# %% ../../4-8.ipynb #5a58eff1
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.manifold import TSNE
@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from ..utils.data import load_mnist_images
 from typing import Literal
 
-# %% ../../4-8.ipynb #15659430
+# %% ../../4-8.ipynb #f22f9731
 def _check_samples(samples: torch.Tensor):
     assert samples.ndim == 2  # (N samples, feature num)
     assert samples.min() >= 0.0, f"samples.min(): {samples.min()}"
@@ -63,7 +63,7 @@ def metric_matrix_neg_log_cos_sin(
 
     return metric
 
-# %% ../../4-8.ipynb #57756e6d
+# %% ../../4-8.ipynb #53655bb3
 def metric_neg_log_cos_sin(
     samples: torch.Tensor,
     reference_samples: torch.Tensor,

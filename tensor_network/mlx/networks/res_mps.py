@@ -5,13 +5,13 @@
 # %% auto #0
 __all__ = ['ResMPSSimple']
 
-# %% ../../../4-4-mlx.ipynb #a75ef7ce
+# %% ../../../4-4-mlx.ipynb #a6d3b26c
 import mlx.core as mx
 from mlx import nn
 from einops import einsum
 from einops.array_api import repeat
 
-# %% ../../../4-4-mlx.ipynb #93b0c483
+# %% ../../../4-4-mlx.ipynb #0b5ae1e7
 class ResMPSSimple(nn.Module):
     def __init__(
         self,

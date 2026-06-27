@@ -3,7 +3,7 @@
 # %% auto #0
 __all__ = ['imaginary_time_evolution']
 
-# %% ../../5-1.ipynb #9c588e53
+# %% ../../5-1.ipynb #645abf3b
 import torch
 from typing import List, Tuple
 from ..quantum_state.functional import calc_observation
@@ -12,7 +12,7 @@ from ..tensor_gates.functional import apply_gate
 from ..utils.checking import check_state_tensor, check_quantum_gate
 from ..utils.mapping import view_gate_matrix_as_tensor, view_gate_tensor_as_matrix
 
-# %% ../../5-1.ipynb #1fff9abd
+# %% ../../5-1.ipynb #0cc495e4
 def imaginary_time_evolution(
     hamiltonian: torch.Tensor,
     interaction_positions: List[List[int]] | torch.Tensor,

@@ -3,7 +3,7 @@
 # %% auto #0
 __all__ = ['FCADQCHybridClassifier']
 
-# %% ../../3-7.ipynb #2c93173b
+# %% ../../3-7.ipynb #a9a265e1
 import torch
 from torch import nn
 from .adqc import ADQCNet, probabilities_adqc_classifier
@@ -11,7 +11,7 @@ from typing import Literal
 from ..feature_mapping import cossin_feature_map, feature_map_to_qubit_state
 from torch.nn import functional as F
 
-# %% ../../3-7.ipynb #3cf96e6f
+# %% ../../3-7.ipynb #56104f5e
 class FCADQCHybridClassifier(nn.Module):
     """
     A hybrid classifier that combines a fully connected layer with an ADQC network.

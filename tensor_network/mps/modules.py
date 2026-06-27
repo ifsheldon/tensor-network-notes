@@ -5,12 +5,12 @@
 # %% auto #0
 __all__ = ['MPS']
 
-# %% ../../4-2.ipynb #3a1da033
+# %% ../../4-2.ipynb #93086e43
 import torch
 from typing import List, Tuple, Literal, Self
 from .functional import gen_random_mps_tensors, MPSType
 
-# %% ../../4-2.ipynb #c474d7fb
+# %% ../../4-2.ipynb #a5e212b0
 from tensor_network.mps.functional import (
     orthogonalize_arange,
     calc_global_tensor_by_tensordot,
@@ -463,7 +463,7 @@ class MPS:
         mps._center = len(local_tensors) - 1
         return mps
 
-# %% ../../4-6.ipynb #1c5a9cdf
+# %% ../../4-6.ipynb #9169618c
 from .functional import project_multi_qubits as project_multi_qubits_func
 from fastcore.basics import patch
 
@@ -483,6 +483,8 @@ def project_multi_qubits(
         MPS, the new MPS after projection.
     """
     local_tensors = self._mps
+    if isinstance(project_to_states, torch.Tensor):
+        project_to_states = project_to_states.to(device=self.device, dtype=self.dtype)
     new_local_tensors = project_multi_qubits_func(local_tensors, qubit_indices, project_to_states)
     return MPS(mps_tensors=new_local_tensors)
 
@@ -508,7 +510,7 @@ def project_one_qubit(self: MPS, qubit_idx: int, project_to_state: torch.Tensor 
     qubit_indices = [qubit_idx]
     return self.project_multi_qubits(qubit_indices, project_to_states)
 
-# %% ../../4-9.ipynb #b04b0609
+# %% ../../4-9.ipynb #61fe0973
 @patch
 def entanglement_entropy_onsite_(
     self: MPS, indices: List[int] | None = None, eps: float = 1e-10
@@ -538,7 +540,7 @@ def entanglement_entropy_onsite_(
     entropies = -(probs * torch.log(probs)).sum(dim=1)  # (length,)
     return entropies
 
-# %% ../../5-2.ipynb #9e7d6760
+# %% ../../5-2.ipynb #7f6012b8
 from einops import rearrange
 
 

@@ -5,12 +5,12 @@
 # %% auto #0
 __all__ = ['dyn_OEE_analyze', 'OEE_variation_one_qubit_measurement']
 
-# %% ../../4-10.ipynb #469b74e8
+# %% ../../4-10.ipynb #251825be
 import torch
 from ..feature_mapping import cossin_feature_map, feature_map_to_qubit_state
 import numpy as np
 
-# %% ../../4-10.ipynb #24a3cab8
+# %% ../../4-10.ipynb #8ea906a7
 from ..quantum_state.functional import calc_onsite_entanglement_entropy, project_state
 
 
@@ -42,7 +42,7 @@ def dyn_OEE_analyze(samples: torch.Tensor, nth_img: int):
         print(f"\t 测量前后OEE变化量 = {oee_change.item()}")
     print()
 
-# %% ../../4-10.ipynb #610291c4
+# %% ../../4-10.ipynb #8a126232
 from ..mps.modules import MPS
 from tqdm.auto import tqdm
 from typing import Dict, Any
@@ -59,6 +59,7 @@ def OEE_variation_one_qubit_measurement(
     progress_bar_kwargs: Dict[str, Any] = {},
 ) -> torch.Tensor:
     assert feature.ndim == 2, "features must be a 2D tensor"
+    feature = feature.to(device=mps.device, dtype=mps.dtype)
     feature_num = feature.shape[0]
     oees = mps.entanglement_entropy_onsite_()
     if oee_threshold is None:

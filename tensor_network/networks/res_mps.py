@@ -5,12 +5,12 @@
 # %% auto #0
 __all__ = ['ResMPSSimple']
 
-# %% ../../4-4.ipynb #a044c4d2
+# %% ../../4-4.ipynb #a77b97dd
 import torch
 from torch import nn
 from einops import einsum, repeat
 
-# %% ../../4-4.ipynb #48203d80
+# %% ../../4-4.ipynb #1a851a75
 class ResMPSSimple(nn.Module):
     """
     A basic residual MPS model.

@@ -3,6 +3,7 @@ import pytest
 import torch
 
 from tensor_network.algorithms.gmps import prepend_labels, train_gmps
+from tensor_network.algorithms.dyn_feature_selection_OEE import OEE_variation_one_qubit_measurement
 from tensor_network.mps.modules import MPS, MPSType
 from tensor_network.tensor_gates.functional import apply_gate
 from tensor_network.utils.data import split_classification_dataset
@@ -82,6 +83,50 @@ def test_prepend_labels_moves_labels_to_image_device():
     assert out.device == raw_images.device
     assert out.dtype == raw_images.dtype
     assert out.shape == (2, 4 + 28 * 28)
+
+
+def test_mps_projection_moves_cpu_projection_tensor_to_mps_device_and_dtype():
+    device = get_torch_device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    mps = MPS(
+        length=2,
+        physical_dim=2,
+        virtual_dim=2,
+        mps_type=MPSType.Open,
+        dtype=torch.float32,
+        device=device,
+        requires_grad=False,
+    )
+    projection_state = torch.tensor([1.0, 0.0], dtype=torch.float64)
+
+    projected = mps.project_one_qubit(0, projection_state)
+
+    assert all(tensor.device.type == mps.device.type for tensor in projected.local_tensors)
+    assert all(tensor.dtype == mps.dtype for tensor in projected.local_tensors)
+
+
+def test_oee_measurement_moves_cpu_features_to_mps_device_and_dtype():
+    device = get_torch_device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    mps = MPS(
+        length=3,
+        physical_dim=2,
+        virtual_dim=2,
+        mps_type=MPSType.Open,
+        dtype=torch.float32,
+        device=device,
+        requires_grad=False,
+    )
+    feature = torch.tensor(
+        [[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]],
+        dtype=torch.float64,
+    )
+
+    oee_changes = OEE_variation_one_qubit_measurement(
+        mps, feature, progress_bar_kwargs={"disable": True}
+    )
+
+    assert oee_changes.device.type == mps.device.type
+    assert oee_changes.dtype == mps.dtype
+    assert oee_changes.shape == (3,)
 
 
 def test_torch_generator_for_rules():
