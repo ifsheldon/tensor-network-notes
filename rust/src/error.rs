@@ -10,6 +10,10 @@ pub enum TensorNetworkError {
     #[error(transparent)]
     Tch(#[from] tch::TchError),
 
+    /// Error propagated from filesystem IO.
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
     /// A safetensors file missed an expected tensor entry.
     #[error("missing tensor key {0:?}")]
     MissingTensorKey(String),

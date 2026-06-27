@@ -5,9 +5,11 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::ffi::CString;
 use tch::Tensor;
+use tensor_network_code::algorithms::gmps::eval_nll;
 use tensor_network_code::feature_mapping::cossin_feature_map;
 use tensor_network_code::mps::MPS;
 use tensor_network_code::tensor_gates::functional::apply_gate;
+use tensor_network_code::utils::data::split_classification_dataset;
 
 fn rust_impl(x: &Tensor) -> Tensor {
     x.sin() + 2.0
@@ -177,6 +179,84 @@ expected = calc_global_tensor_by_tensordot([t0, t1, t2]).detach().cpu().contiguo
             actual.allclose(&expected, 1e-5, 1e-8, false),
             "MPS global tensor mismatch\nactual={actual:?}\nexpected={expected:?}"
         );
+        Ok(())
+    })
+}
+
+#[test]
+fn gmps_eval_nll_matches_python_export() -> PyResult<()> {
+    Python::with_gil(|py| {
+        let locals = run_fixture(
+            py,
+            r#"
+import sys
+sys.path.insert(0, "..")
+import torch
+from tensor_network.mps.modules import MPS
+from tensor_network.algorithms.gmps import eval_nll
+
+torch.manual_seed(7)
+t0 = torch.randn(1, 2, 3, dtype=torch.float32)
+t1 = torch.randn(3, 2, 2, dtype=torch.float32)
+t2 = torch.randn(2, 2, 1, dtype=torch.float32)
+samples = torch.rand(5, 3, 2, dtype=torch.float32)
+mps = MPS(mps_tensors=[t0, t1, t2])
+mps._center = 1
+expected = eval_nll(samples=samples, mps=mps, device=torch.device("cpu"), return_avg=False).detach().cpu().contiguous()
+"#,
+        )?;
+
+        let t0 = extract_torch_tensor(&locals.get_item("t0")?.expect("missing t0"))?;
+        let t1 = extract_torch_tensor(&locals.get_item("t1")?.expect("missing t1"))?;
+        let t2 = extract_torch_tensor(&locals.get_item("t2")?.expect("missing t2"))?;
+        let samples = extract_torch_tensor(&locals.get_item("samples")?.expect("missing samples"))?;
+        let expected =
+            extract_torch_tensor(&locals.get_item("expected")?.expect("missing expected"))?;
+        let mut mps = MPS::from_tensors(vec![t0, t1, t2]);
+        mps.set_center(Some(1));
+        let actual = eval_nll(&samples, &mps, tch::Device::Cpu, false);
+
+        assert_eq!(actual.size(), expected.size());
+        assert!(
+            actual.allclose(&expected, 1e-5, 1e-8, false),
+            "GMPS eval_nll mismatch\nactual={actual:?}\nexpected={expected:?}"
+        );
+        Ok(())
+    })
+}
+
+#[test]
+fn split_classification_dataset_matches_python_export() -> PyResult<()> {
+    Python::with_gil(|py| {
+        let locals = run_fixture(
+            py,
+            r#"
+import sys
+sys.path.insert(0, "..")
+import torch
+from tensor_network.utils.data import split_classification_dataset
+
+data = torch.arange(24, dtype=torch.float32).reshape(12, 2)
+targets = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2], dtype=torch.long)
+expected = split_classification_dataset(data, targets, ratio=0.25, shuffle=False)
+"#,
+        )?;
+
+        let data = extract_torch_tensor(&locals.get_item("data")?.expect("missing data"))?;
+        let targets = extract_torch_tensor(&locals.get_item("targets")?.expect("missing targets"))?;
+        let expected = locals.get_item("expected")?.expect("missing expected");
+        let actual = split_classification_dataset(&data, &targets, 0.25, false);
+        let actual = [actual.0, actual.1, actual.2, actual.3];
+
+        for (idx, actual) in actual.iter().enumerate() {
+            let expected_i = expected.get_item(idx)?;
+            let expected_i = extract_torch_tensor(&expected_i)?;
+            assert_eq!(actual.size(), expected_i.size(), "shape mismatch at {idx}");
+            assert!(
+                actual.allclose(&expected_i, 1e-5, 1e-8, false),
+                "split output {idx} mismatch\nactual={actual:?}\nexpected={expected_i:?}"
+            );
+        }
         Ok(())
     })
 }

@@ -192,6 +192,14 @@ impl MPS {
         &self.tensors[idx]
     }
 
+    /// Set center metadata after an operation that preserves or intentionally moves the center.
+    pub fn set_center(&mut self, center: Option<usize>) {
+        if let Some(center) = center {
+            assert!(center < self.len(), "center out of range");
+        }
+        self.center = center;
+    }
+
     /// Replace one local tensor after semantic shape and dtype checks.
     pub fn set_local_tensor(&mut self, idx: usize, value: Tensor) {
         assert_eq!(
@@ -205,6 +213,16 @@ impl MPS {
             "value dtype must match local tensor dtype"
         );
         self.force_set_local_tensor(idx, value);
+    }
+
+    /// Replace one local tensor after checking shape, preserving the incoming dtype/device.
+    pub fn replace_local_tensor(&mut self, idx: usize, value: Tensor) {
+        assert_eq!(
+            value.size(),
+            self.tensors[idx].size(),
+            "value shape must match local tensor shape"
+        );
+        self.tensors[idx] = value;
     }
 
     /// Replace one local tensor after converting dtype/device to the current MPS.
