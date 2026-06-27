@@ -52,6 +52,7 @@ pub mod algorithms;
 pub mod error;
 pub mod feature_mapping;
 pub mod mps;
+pub mod networks;
 pub mod quantum_state;
 pub mod tensor_gates;
 pub mod types;

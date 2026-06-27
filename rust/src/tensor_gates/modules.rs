@@ -1,11 +1,12 @@
 //! Thin gate wrappers around functional gate application.
 
-use tch::Tensor;
+use tch::{Device, Kind, Tensor, nn};
 
 use crate::tensor_gates::functional::{
     Pauli, apply_gate, apply_gate_batched, pauli_operator, rotate_from_params,
 };
 use crate::utils::checking::check_quantum_gate;
+use crate::utils::mapping::{view_gate_matrix_as_tensor, view_gate_tensor_as_matrix};
 
 /// Common gate interface.
 pub trait QuantumGate: std::fmt::Debug + Send {
@@ -162,4 +163,108 @@ impl QuantumGate for RotateGate {
             apply_gate(tensor, &gate, target, control)
         }
     }
+}
+
+/// Trainable ADQC gate parameterized by a latent complex tensor.
+#[derive(Debug)]
+pub struct ADQCGate {
+    gate_real: Tensor,
+    gate_imag: Tensor,
+    batched_input: bool,
+    target_qubit: Vec<i64>,
+    control_qubit: Vec<i64>,
+    double_precision: bool,
+}
+
+impl ADQCGate {
+    /// Construct an ADQC gate under an `nn::Path`.
+    pub fn new(
+        vs: &nn::Path<'_>,
+        target_qubit: Vec<i64>,
+        control_qubit: Vec<i64>,
+        batched_input: bool,
+        double_precision: bool,
+        identity_init: bool,
+    ) -> Self {
+        assert!(!target_qubit.is_empty(), "target_qubit must be non-empty");
+        let dims = vec![2; target_qubit.len() * 2];
+        let device = vs.device();
+        let mut gate_real = Tensor::randn(dims.as_slice(), (Kind::Float, device));
+        let mut gate_imag = Tensor::randn(dims.as_slice(), (Kind::Float, device));
+        if identity_init {
+            let identity = Tensor::eye(2_i64.pow(target_qubit.len() as u32), (Kind::Float, device))
+                .reshape(dims.as_slice());
+            gate_real = identity + 0.001 * gate_real;
+            gate_imag *= 0.001;
+        }
+        if double_precision {
+            gate_real = gate_real.to_kind(Kind::Double);
+            gate_imag = gate_imag.to_kind(Kind::Double);
+        }
+        let gate_real = vs.add("gate_real", gate_real, true);
+        let gate_imag = vs.add("gate_imag", gate_imag, true);
+        Self {
+            gate_real,
+            gate_imag,
+            batched_input,
+            target_qubit,
+            control_qubit,
+            double_precision,
+        }
+    }
+
+    fn gate_params(&self) -> Tensor {
+        let real = if self.double_precision {
+            self.gate_real.to_kind(Kind::Double)
+        } else {
+            self.gate_real.shallow_clone()
+        };
+        let imag = if self.double_precision {
+            self.gate_imag.to_kind(Kind::Double)
+        } else {
+            self.gate_imag.shallow_clone()
+        };
+        Tensor::complex(&real, &imag)
+    }
+
+    /// Return the unitary gate tensor derived from latent parameters.
+    pub fn gate(&self) -> Tensor {
+        let params = self.gate_params();
+        let (u, _s, vh) = Tensor::linalg_svd(&view_gate_tensor_as_matrix(&params, None), false, "");
+        view_gate_matrix_as_tensor(&u.matmul(&vh), None)
+    }
+}
+
+impl QuantumGate for ADQCGate {
+    fn forward(
+        &self,
+        tensor: &Tensor,
+        target_qubit: Option<&[i64]>,
+        control_qubit: Option<&[i64]>,
+    ) -> Tensor {
+        let gate = self.gate();
+        let target = target_qubit.unwrap_or(&self.target_qubit);
+        let control = control_qubit.unwrap_or(&self.control_qubit);
+        if self.batched_input {
+            apply_gate_batched(tensor, &gate, target, control)
+        } else {
+            apply_gate(tensor, &gate, target, control)
+        }
+    }
+}
+
+/// Build a non-trainable simple gate from a tensor on a target device.
+pub fn simple_gate_on_device(
+    gate: &Tensor,
+    batched_input: bool,
+    target_qubit: Vec<i64>,
+    device: Device,
+) -> SimpleGate {
+    SimpleGate::new(
+        gate.to_device(device),
+        batched_input,
+        Some(target_qubit),
+        None,
+        Some(false),
+    )
 }
