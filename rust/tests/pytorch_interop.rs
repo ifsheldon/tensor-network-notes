@@ -4,15 +4,37 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::ffi::CString;
+use std::fs;
+use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use tch::Tensor;
 use tensor_network_code::algorithms::gmps::eval_nll;
 use tensor_network_code::feature_mapping::cossin_feature_map;
 use tensor_network_code::mps::MPS;
 use tensor_network_code::tensor_gates::functional::apply_gate;
-use tensor_network_code::utils::data::split_classification_dataset;
+use tensor_network_code::utils::data::{
+    ImageLoadOptions, ImagePreprocess, ImageSubset, load_fashion_mnist_images_from_cache,
+    load_mnist_images_from_cache, split_classification_dataset,
+};
+
+const MNIST_ROWS: usize = 28;
+const MNIST_COLS: usize = 28;
+const MNIST_IMAGE_PIXELS: usize = MNIST_ROWS * MNIST_COLS;
 
 fn rust_impl(x: &Tensor) -> Tensor {
     x.sin() + 2.0
+}
+
+fn python_test_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+fn with_python_test(f: impl for<'py> FnOnce(Python<'py>) -> PyResult<()>) -> PyResult<()> {
+    let _guard = python_test_lock()
+        .lock()
+        .expect("Python interop test lock was poisoned");
+    Python::with_gil(f)
 }
 
 fn run_fixture<'py>(py: Python<'py>, code: &str) -> PyResult<Bound<'py, PyDict>> {
@@ -35,9 +57,77 @@ fn extract_torch_tensor(ob: &Bound<'_, PyAny>) -> PyResult<Tensor> {
     })
 }
 
+fn assert_tensors_allclose(name: &str, actual: &Tensor, expected: &Tensor, rtol: f64, atol: f64) {
+    assert_eq!(actual.size(), expected.size(), "{name} shape mismatch");
+    assert_eq!(actual.kind(), expected.kind(), "{name} kind mismatch");
+    let max_abs_diff = (actual - expected).abs().max().double_value(&[]);
+    assert!(
+        actual.allclose(expected, rtol, atol, false),
+        "{name} mismatch; max_abs_diff={max_abs_diff}\nactual={actual:?}\nexpected={expected:?}",
+    );
+}
+
+fn tiny_train_images() -> Vec<u8> {
+    tiny_images(6, 11)
+}
+
+fn tiny_test_images() -> Vec<u8> {
+    tiny_images(4, 97)
+}
+
+fn tiny_images(samples: usize, offset: u8) -> Vec<u8> {
+    (0..samples * MNIST_IMAGE_PIXELS)
+        .map(|idx| offset.wrapping_add((idx % 251) as u8))
+        .collect()
+}
+
+fn write_u32_be(bytes: &mut Vec<u8>, value: u32) {
+    bytes.extend_from_slice(&value.to_be_bytes());
+}
+
+fn write_idx_images(path: &Path, samples: usize, data: &[u8]) -> std::io::Result<()> {
+    assert_eq!(data.len(), samples * MNIST_IMAGE_PIXELS);
+    let mut bytes = Vec::with_capacity(16 + data.len());
+    write_u32_be(&mut bytes, 2051);
+    write_u32_be(&mut bytes, samples as u32);
+    write_u32_be(&mut bytes, MNIST_ROWS as u32);
+    write_u32_be(&mut bytes, MNIST_COLS as u32);
+    bytes.extend_from_slice(data);
+    fs::write(path, bytes)
+}
+
+fn write_idx_labels(path: &Path, labels: &[u8]) -> std::io::Result<()> {
+    let mut bytes = Vec::with_capacity(8 + labels.len());
+    write_u32_be(&mut bytes, 2049);
+    write_u32_be(&mut bytes, labels.len() as u32);
+    bytes.extend_from_slice(labels);
+    fs::write(path, bytes)
+}
+
+fn write_mnist_style_files(dir: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dir)?;
+    let train_images = tiny_train_images();
+    let test_images = tiny_test_images();
+    write_idx_images(&dir.join("train-images-idx3-ubyte"), 6, &train_images)?;
+    write_idx_labels(&dir.join("train-labels-idx1-ubyte"), &[0, 1, 2, 3, 4, 1])?;
+    write_idx_images(&dir.join("t10k-images-idx3-ubyte"), 4, &test_images)?;
+    write_idx_labels(&dir.join("t10k-labels-idx1-ubyte"), &[1, 2, 9, 1])?;
+    Ok(())
+}
+
+fn create_mnist_style_cache() -> tempfile::TempDir {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    write_mnist_style_files(tmp.path()).expect("write direct tch cache");
+    write_mnist_style_files(&tmp.path().join("MNIST").join("raw"))
+        .expect("write torchvision MNIST cache");
+    write_mnist_style_files(&tmp.path().join("FashionMNIST").join("raw"))
+        .expect("write torchvision FashionMNIST cache");
+    tmp
+}
+
 #[test]
 fn pytorch_tensor_interop_matches_python_reference() -> PyResult<()> {
-    Python::with_gil(|py| {
+    with_python_test(|py| {
         let locals = run_fixture(
             py,
             r#"
@@ -86,8 +176,176 @@ with torch.inference_mode():
 }
 
 #[test]
+fn load_mnist_images_from_cache_matches_python_unit_range_oracle() -> PyResult<()> {
+    let tmp = create_mnist_style_cache();
+    with_python_test(|py| {
+        let cache_path = tmp.path().to_string_lossy();
+        let locals = run_fixture(
+            py,
+            &format!(
+                r#"
+import sys
+sys.path.insert(0, "..")
+from tensor_network.utils.data import load_mnist_images
+
+cache_path = {cache_path:?}
+expected_images, expected_labels = load_mnist_images(
+    cache_path=cache_path,
+    num=3,
+    from_subset="all",
+    shuffle=False,
+    normalization=False,
+    classes=[1, 2],
+    return_labels=True,
+)
+expected_images = expected_images.detach().cpu().contiguous()
+expected_labels = expected_labels.detach().cpu().contiguous()
+"#,
+            ),
+        )?;
+        let expected_images =
+            extract_torch_tensor(&locals.get_item("expected_images")?.expect("missing images"))?;
+        let expected_labels =
+            extract_torch_tensor(&locals.get_item("expected_labels")?.expect("missing labels"))?;
+
+        let classes = [1, 2];
+        let actual = load_mnist_images_from_cache(
+            tmp.path(),
+            ImageLoadOptions {
+                subset: ImageSubset::All,
+                num: Some(3),
+                classes: Some(&classes),
+                ..Default::default()
+            },
+        )
+        .expect("load Rust MNIST fixture");
+
+        assert_tensors_allclose("MNIST images", &actual.images, &expected_images, 1e-6, 1e-8);
+        assert_tensors_allclose("MNIST labels", &actual.labels, &expected_labels, 0.0, 0.0);
+        Ok(())
+    })
+}
+
+#[test]
+fn load_mnist_images_from_cache_matches_python_standardized_oracle() -> PyResult<()> {
+    let tmp = create_mnist_style_cache();
+    with_python_test(|py| {
+        let cache_path = tmp.path().to_string_lossy();
+        let locals = run_fixture(
+            py,
+            &format!(
+                r#"
+import sys
+sys.path.insert(0, "..")
+from tensor_network.utils.data import load_mnist_images
+
+cache_path = {cache_path:?}
+expected_images, expected_labels = load_mnist_images(
+    cache_path=cache_path,
+    num=4,
+    from_subset="train",
+    shuffle=False,
+    normalization=True,
+    classes=None,
+    return_labels=True,
+)
+expected_images = expected_images.detach().cpu().contiguous()
+expected_labels = expected_labels.detach().cpu().contiguous()
+"#,
+            ),
+        )?;
+        let expected_images =
+            extract_torch_tensor(&locals.get_item("expected_images")?.expect("missing images"))?;
+        let expected_labels =
+            extract_torch_tensor(&locals.get_item("expected_labels")?.expect("missing labels"))?;
+
+        let actual = load_mnist_images_from_cache(
+            tmp.path(),
+            ImageLoadOptions {
+                subset: ImageSubset::Train,
+                num: Some(4),
+                preprocess: ImagePreprocess::mnist_standardized(),
+                ..Default::default()
+            },
+        )
+        .expect("load Rust MNIST fixture");
+
+        assert_tensors_allclose(
+            "standardized MNIST images",
+            &actual.images,
+            &expected_images,
+            1e-5,
+            1e-6,
+        );
+        assert_tensors_allclose(
+            "standardized MNIST labels",
+            &actual.labels,
+            &expected_labels,
+            0.0,
+            0.0,
+        );
+        Ok(())
+    })
+}
+
+#[test]
+fn load_fashion_mnist_images_from_cache_matches_python_unit_range_oracle() -> PyResult<()> {
+    let tmp = create_mnist_style_cache();
+    with_python_test(|py| {
+        let cache_path = tmp.path().to_string_lossy();
+        let locals = run_fixture(
+            py,
+            &format!(
+                r#"
+import sys
+sys.path.insert(0, "..")
+from torch.utils import data
+from tensor_network.utils.data import get_fashion_mnist_datasets
+
+cache_path = {cache_path:?}
+_, test_set = get_fashion_mnist_datasets(cache_path)
+expected_images, expected_labels = next(iter(data.DataLoader(test_set, batch_size=2, shuffle=False)))
+expected_images = expected_images.detach().cpu().contiguous()
+expected_labels = expected_labels.detach().cpu().contiguous()
+"#,
+            ),
+        )?;
+        let expected_images =
+            extract_torch_tensor(&locals.get_item("expected_images")?.expect("missing images"))?;
+        let expected_labels =
+            extract_torch_tensor(&locals.get_item("expected_labels")?.expect("missing labels"))?;
+
+        let actual = load_fashion_mnist_images_from_cache(
+            tmp.path(),
+            ImageLoadOptions {
+                subset: ImageSubset::Test,
+                num: Some(2),
+                ..Default::default()
+            },
+        )
+        .expect("load Rust Fashion-MNIST fixture");
+
+        assert_tensors_allclose(
+            "Fashion-MNIST images",
+            &actual.images,
+            &expected_images,
+            1e-6,
+            1e-8,
+        );
+        assert_tensors_allclose(
+            "Fashion-MNIST labels",
+            &actual.labels,
+            &expected_labels,
+            0.0,
+            0.0,
+        );
+        Ok(())
+    })
+}
+
+#[test]
 fn cossin_feature_map_matches_python_export() -> PyResult<()> {
-    Python::with_gil(|py| {
+    with_python_test(|py| {
         let locals = run_fixture(
             py,
             r#"
@@ -117,7 +375,7 @@ expected = cossin_feature_map(samples, theta=0.7).detach().cpu().contiguous()
 
 #[test]
 fn apply_gate_matches_python_export() -> PyResult<()> {
-    Python::with_gil(|py| {
+    with_python_test(|py| {
         let locals = run_fixture(
             py,
             r#"
@@ -150,7 +408,7 @@ expected = apply_gate(quantum_state=state, gate=gate, target_qubit=1).detach().c
 
 #[test]
 fn mps_global_tensor_matches_python_export() -> PyResult<()> {
-    Python::with_gil(|py| {
+    with_python_test(|py| {
         let locals = run_fixture(
             py,
             r#"
@@ -185,7 +443,7 @@ expected = calc_global_tensor_by_tensordot([t0, t1, t2]).detach().cpu().contiguo
 
 #[test]
 fn gmps_eval_nll_matches_python_export() -> PyResult<()> {
-    Python::with_gil(|py| {
+    with_python_test(|py| {
         let locals = run_fixture(
             py,
             r#"
@@ -227,7 +485,7 @@ expected = eval_nll(samples=samples, mps=mps, device=torch.device("cpu"), return
 
 #[test]
 fn split_classification_dataset_matches_python_export() -> PyResult<()> {
-    Python::with_gil(|py| {
+    with_python_test(|py| {
         let locals = run_fixture(
             py,
             r#"

@@ -38,12 +38,12 @@ Rust has `load_iris`, cached MNIST loading, cached Fashion-MNIST loading through
 Rust now has a typed high-level image loading layer for MNIST-compatible cached datasets, including subset selection, class filtering, shuffling, truncation, device movement, and explicit preprocessing.
 The default preprocessing is unit-range because range-checked quantum feature maps expect values in `[0, 1]`.
 Standardized MNIST remains available through the explicit MNIST mean/std option for classical and hybrid classifier workflows.
+Fashion-MNIST intentionally has no standardized preprocessing constant because the Python notebooks use unit-range `ToTensor()` behavior and no current caller needs a second convention.
+Rust image dataset loading is intentionally cache-only; dataset download remains a Python-side workflow.
 
 Remaining work:
 
-- Add Python-oracle tests comparing Rust image selection and preprocessing to `load_mnist_images` on a small cached MNIST fixture.
-- Decide whether Fashion-MNIST should gain a dedicated standardized preprocessing constant later; Python currently uses only unit-range `ToTensor()` for Fashion-MNIST.
-- Decide whether a Rust download path is needed; the current design is intentionally cache-only.
+- Add broader CUDA-gated coverage for image selection once a CUDA CI target is available.
 
 ### Generic Tensor Utilities
 
