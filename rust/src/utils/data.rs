@@ -6,6 +6,86 @@ use tch::{Device, IndexOp, Kind, Tensor};
 
 use crate::error::{Result, TensorNetworkError};
 
+/// Image dataset subset.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ImageSubset {
+    /// Training split.
+    Train,
+    /// Test split.
+    Test,
+    /// Concatenated train and test splits.
+    All,
+}
+
+/// Image preprocessing applied after selecting samples.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ImagePreprocess {
+    /// Keep image values in the unit range produced by the IDX reader.
+    UnitRange,
+    /// Standardize unit-range image values by `(x - mean) / std`.
+    Standardized {
+        /// Dataset mean.
+        mean: f64,
+        /// Dataset standard deviation.
+        std: f64,
+    },
+}
+
+impl ImagePreprocess {
+    /// Standard MNIST normalization used by the Python notebooks.
+    pub fn mnist_standardized() -> Self {
+        Self::Standardized {
+            mean: 0.1307,
+            std: 0.3081,
+        }
+    }
+}
+
+impl Default for ImagePreprocess {
+    fn default() -> Self {
+        Self::UnitRange
+    }
+}
+
+/// Options for loading image tensors from cached classification datasets.
+#[derive(Debug, Copy, Clone)]
+pub struct ImageLoadOptions<'a> {
+    /// Dataset split to load.
+    pub subset: ImageSubset,
+    /// Optional maximum number of images after filtering and shuffling.
+    pub num: Option<i64>,
+    /// Whether to shuffle after class filtering and before truncation.
+    pub shuffle: bool,
+    /// Image preprocessing.
+    pub preprocess: ImagePreprocess,
+    /// Optional class filter.
+    pub classes: Option<&'a [i64]>,
+    /// Device for returned tensors.
+    pub device: Device,
+}
+
+impl Default for ImageLoadOptions<'_> {
+    fn default() -> Self {
+        Self {
+            subset: ImageSubset::Train,
+            num: None,
+            shuffle: false,
+            preprocess: ImagePreprocess::UnitRange,
+            classes: None,
+            device: Device::Cpu,
+        }
+    }
+}
+
+/// Loaded image tensors and labels.
+#[derive(Debug)]
+pub struct LoadedImages {
+    /// Images shaped `(N, 1, 28, 28)`.
+    pub images: Tensor,
+    /// Labels shaped `(N)`.
+    pub labels: Tensor,
+}
+
 /// Load the Iris dataset as tensors.
 pub fn load_iris(force_single_precision: bool) -> (Tensor, Tensor) {
     let dataset = linfa_datasets::iris();
@@ -99,6 +179,15 @@ pub fn load_mnist_from_cache<P: AsRef<Path>>(
     Ok(tch::vision::mnist::load_dir(cache_path)?)
 }
 
+/// Load selected MNIST images from a cache directory.
+pub fn load_mnist_images_from_cache<P: AsRef<Path>>(
+    cache_path: P,
+    options: ImageLoadOptions<'_>,
+) -> Result<LoadedImages> {
+    let dataset = load_mnist_from_cache(cache_path)?;
+    Ok(select_classification_images(&dataset, options))
+}
+
 /// Load cached Fashion-MNIST data through the MNIST IDX reader.
 ///
 /// The cache must already contain uncompressed IDX files using the names expected by
@@ -107,6 +196,59 @@ pub fn load_fashion_mnist_from_cache<P: AsRef<Path>>(
     cache_path: P,
 ) -> Result<tch::vision::dataset::Dataset> {
     load_mnist_from_cache(cache_path)
+}
+
+/// Load selected Fashion-MNIST images from a cache directory.
+pub fn load_fashion_mnist_images_from_cache<P: AsRef<Path>>(
+    cache_path: P,
+    options: ImageLoadOptions<'_>,
+) -> Result<LoadedImages> {
+    let dataset = load_fashion_mnist_from_cache(cache_path)?;
+    Ok(select_classification_images(&dataset, options))
+}
+
+/// Select, preprocess, and move image tensors from a classification dataset.
+pub fn select_classification_images(
+    dataset: &tch::vision::dataset::Dataset,
+    options: ImageLoadOptions<'_>,
+) -> LoadedImages {
+    if let Some(num) = options.num {
+        assert!(num > 0, "num must be positive when provided");
+    }
+    validate_classes(options.classes, dataset.labels);
+    let (mut images, mut labels) = match options.subset {
+        ImageSubset::Train => (
+            dataset.train_images.shallow_clone(),
+            dataset.train_labels.shallow_clone(),
+        ),
+        ImageSubset::Test => (
+            dataset.test_images.shallow_clone(),
+            dataset.test_labels.shallow_clone(),
+        ),
+        ImageSubset::All => (
+            Tensor::cat(&[&dataset.train_images, &dataset.test_images], 0),
+            Tensor::cat(&[&dataset.train_labels, &dataset.test_labels], 0),
+        ),
+    };
+    if let Some(classes) = options.classes {
+        let mask = class_mask(&labels, classes);
+        images = images.index(&[Some(&mask)]);
+        labels = labels.index(&[Some(&mask)]);
+    }
+    if options.shuffle {
+        let permutation = Tensor::randperm(labels.size()[0], (Kind::Int64, labels.device()));
+        images = images.index_select(0, &permutation);
+        labels = labels.index_select(0, &permutation);
+    }
+    if let Some(num) = options.num {
+        let keep = num.min(labels.size()[0]);
+        images = images.i(..keep);
+        labels = labels.i(..keep);
+    }
+    images = apply_image_preprocess(&images, options.preprocess);
+    images = image_tensor_to_nchw(&images).to_device(options.device);
+    labels = labels.to_device(options.device);
+    LoadedImages { images, labels }
 }
 
 /// Move a dataset to a device.
@@ -123,9 +265,68 @@ pub fn dataset_to_device(
     }
 }
 
+fn validate_classes(classes: Option<&[i64]>, labels: i64) {
+    if let Some(classes) = classes {
+        assert!(!classes.is_empty(), "classes must be non-empty");
+        let mut seen = Vec::with_capacity(classes.len());
+        for &class_id in classes {
+            assert!(
+                0 <= class_id && class_id < labels,
+                "class id must be in [0, labels)"
+            );
+            assert!(!seen.contains(&class_id), "classes must be unique");
+            seen.push(class_id);
+        }
+    }
+}
+
+fn class_mask(labels: &Tensor, classes: &[i64]) -> Tensor {
+    let mut mask = labels.eq(classes[0]);
+    for &class_id in classes.iter().skip(1) {
+        mask = mask.logical_or(&labels.eq(class_id));
+    }
+    mask
+}
+
+fn apply_image_preprocess(images: &Tensor, preprocess: ImagePreprocess) -> Tensor {
+    match preprocess {
+        ImagePreprocess::UnitRange => images.shallow_clone(),
+        ImagePreprocess::Standardized { mean, std } => {
+            assert!(std > 0.0, "standard deviation must be positive");
+            (images - mean) / std
+        }
+    }
+}
+
+fn image_tensor_to_nchw(images: &Tensor) -> Tensor {
+    let shape = images.size();
+    match shape.as_slice() {
+        [_, 784] => images.reshape([shape[0], 1, 28, 28]),
+        [_, 1, 28, 28] => images.shallow_clone(),
+        _ => panic!("images must have shape (N, 784) or (N, 1, 28, 28), got {shape:?}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn synthetic_dataset() -> tch::vision::dataset::Dataset {
+        let train_images = Tensor::arange(6 * 784, (Kind::Float, Device::Cpu)).reshape([6, 784])
+            / (6 * 784) as f64;
+        let train_labels = Tensor::from_slice(&[0_i64, 1, 2, 0, 1, 2]);
+        let test_images = Tensor::arange_start(6 * 784, 10 * 784, (Kind::Float, Device::Cpu))
+            .reshape([4, 784])
+            / (10 * 784) as f64;
+        let test_labels = Tensor::from_slice(&[0_i64, 1, 2, 1]);
+        tch::vision::dataset::Dataset {
+            train_images,
+            train_labels,
+            test_images,
+            test_labels,
+            labels: 3,
+        }
+    }
 
     #[test]
     fn load_iris_returns_expected_shapes_and_kinds() {
@@ -137,5 +338,104 @@ mod tests {
 
         let (data_f32, _) = load_iris(true);
         assert_eq!(data_f32.kind(), Kind::Float);
+    }
+
+    #[test]
+    fn select_classification_images_handles_subsets_classes_and_shapes() {
+        let dataset = synthetic_dataset();
+        let loaded = select_classification_images(
+            &dataset,
+            ImageLoadOptions {
+                subset: ImageSubset::All,
+                num: Some(3),
+                classes: Some(&[1]),
+                ..Default::default()
+            },
+        );
+        assert_eq!(loaded.images.size(), vec![3, 1, 28, 28]);
+        assert_eq!(loaded.labels.size(), vec![3]);
+        assert!(loaded.labels.eq(1).all().int64_value(&[]) != 0);
+    }
+
+    #[test]
+    fn select_classification_images_supports_test_subset() {
+        let dataset = synthetic_dataset();
+        let loaded = select_classification_images(
+            &dataset,
+            ImageLoadOptions {
+                subset: ImageSubset::Test,
+                num: None,
+                ..Default::default()
+            },
+        );
+        assert_eq!(loaded.images.size()[0], 4);
+        assert_eq!(loaded.labels.size()[0], 4);
+    }
+
+    #[test]
+    fn image_preprocess_unit_range_keeps_values_unchanged() {
+        let dataset = synthetic_dataset();
+        let loaded = select_classification_images(
+            &dataset,
+            ImageLoadOptions {
+                subset: ImageSubset::Train,
+                num: Some(1),
+                preprocess: ImagePreprocess::UnitRange,
+                ..Default::default()
+            },
+        );
+        let expected = dataset.train_images.i((0, 0)).double_value(&[]);
+        let actual = loaded.images.i((0, 0, 0, 0)).double_value(&[]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn image_preprocess_mnist_standardized_matches_python_constants() {
+        let dataset = synthetic_dataset();
+        let loaded = select_classification_images(
+            &dataset,
+            ImageLoadOptions {
+                subset: ImageSubset::Train,
+                num: Some(1),
+                preprocess: ImagePreprocess::mnist_standardized(),
+                ..Default::default()
+            },
+        );
+        let expected = (0.0 - 0.1307) / 0.3081;
+        let actual = loaded.images.i((0, 0, 0, 0)).double_value(&[]);
+        assert!((actual - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn selected_images_move_to_requested_device() {
+        let dataset = synthetic_dataset();
+        let loaded = select_classification_images(
+            &dataset,
+            ImageLoadOptions {
+                device: Device::Cpu,
+                ..Default::default()
+            },
+        );
+        assert_eq!(loaded.images.device(), Device::Cpu);
+        assert_eq!(loaded.labels.device(), Device::Cpu);
+        if tch::Cuda::is_available() {
+            let loaded = select_classification_images(
+                &dataset,
+                ImageLoadOptions {
+                    device: Device::Cuda(0),
+                    ..Default::default()
+                },
+            );
+            assert_eq!(loaded.images.device(), Device::Cuda(0));
+            assert_eq!(loaded.labels.device(), Device::Cuda(0));
+        }
+    }
+
+    #[test]
+    fn missing_mnist_cache_returns_artifact_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let missing = tmp.path().join("missing");
+        let err = load_mnist_from_cache(&missing).expect_err("missing cache should error");
+        assert!(matches!(err, TensorNetworkError::MissingArtifact(_)));
     }
 }
