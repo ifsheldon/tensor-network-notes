@@ -20,6 +20,9 @@ We use `poe` to run tools. Available commands are:
     * `check_tensor_network`: check the exported code in `tensor_network` package
     * `check`: check code in `.`
     * `check_all`: check code in `.` and `tensor_network`
+* Notebook smoke checks:
+    * `notebooks_cpu_smoke`: run non-MLX notebooks in smoke mode on CPU and write reports under `target/notebook-smoke`
+    * `notebooks_cuda_smoke`: run non-MLX notebooks in smoke mode on CUDA and write reports under `target/notebook-smoke`
 * `precommit`: run pre-commit hooks
 
 Sample usage:
@@ -29,6 +32,10 @@ poe lab
 # if your shell does not detect venvs automatically, you can run uv run poe directly
 uv run poe lab
 ```
+
+Torch notebooks use `TN_TORCH_DEVICE` to choose the requested device and `TN_NOTEBOOK_SMOKE=1` to reduce long training loops for compatibility checks.
+The automatic device order is CUDA, then MPS, then CPU.
+MLX notebooks are intentionally excluded from the Torch smoke tasks, and locally saved MPS checkpoints under `datasets/mps` are treated as optional artifacts.
 
 ## Rust Experiments
 

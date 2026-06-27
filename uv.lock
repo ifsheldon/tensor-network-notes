@@ -565,15 +565,15 @@ wheels = [
 
 [[package]]
 name = "execnb"
-version = "0.2.2"
+version = "0.1.18"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
     { name = "ipython" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a5/4f/855257c3e318895272a6b01554416146a1d397a9bb91fdbc3906614b9ca2/execnb-0.2.2.tar.gz", hash = "sha256:393c528276cac306f5410d351ead55c156ae7256dc11d032478fbf4ffc2cb23f", size = 12887, upload-time = "2026-04-26T03:51:32.109Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/42/75dea9111731e7918eb62f3ab2d15b6c416a72ee62598e252537da3ebabd/execnb-0.1.18.tar.gz", hash = "sha256:54cd96b1d14809ceedac28dfba92f9c16d14153cd15b944f7d6b3a8d8a424833", size = 15499, upload-time = "2026-01-04T20:55:42.587Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/54/456427be03c6587167c01de648a1be88486de16cf19e3dbb62933f180c3b/execnb-0.2.2-py3-none-any.whl", hash = "sha256:3545aeba2a9baa378746f88505de625ff1df94e091ee3158cb2fc39c65847c54", size = 12291, upload-time = "2026-04-26T03:51:30.834Z" },
+    { url = "https://files.pythonhosted.org/packages/72/2e/1a091572fdeb08a1788647bf5f6e7c751da06f5433ef64e67d939b9c88bd/execnb-0.1.18-py3-none-any.whl", hash = "sha256:3d2083dfd14ac8489067019c044c848357d7390f9a22f438f8f3947b5aa9cc50", size = 13956, upload-time = "2026-01-04T20:55:41.594Z" },
 ]
 
 [[package]]
@@ -1463,7 +1463,7 @@ wheels = [
 
 [[package]]
 name = "nbdev"
-version = "3.0.17"
+version = "2.4.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asttokens" },
@@ -1473,13 +1473,14 @@ dependencies = [
     { name = "fastcore" },
     { name = "fastgit" },
     { name = "ghapi" },
+    { name = "packaging" },
     { name = "pyyaml" },
     { name = "setuptools" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/c3/38e39288ad54e782d53c087f07f9c2decf56aa512100bb28f1b273a2a2b6/nbdev-3.0.17.tar.gz", hash = "sha256:4e9f828b04d20abe8a5b1a1b783e8c8c3fd827670e51dfa381abe5c1727b51c7", size = 71370, upload-time = "2026-05-21T03:14:02.06Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/e7/a73808e7f0daf94e7c30de94dd5ad3817459611aeed4270870d1a354729f/nbdev-2.4.14.tar.gz", hash = "sha256:cd751b5057f4f089dc6c33bab078993fa285be117777e1ac14b3e9d84b805b78", size = 69349, upload-time = "2026-01-20T22:02:42.908Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/7e/f32a0f09eb866f3e311a1550ae6f088ce0e604de6baf9c0fccb2195dea49/nbdev-3.0.17-py3-none-any.whl", hash = "sha256:fba12e1184a37ffe377cdf526c68e6eecce4a82cf075e5dc6530296665baeac3", size = 75960, upload-time = "2026-05-21T03:14:00.412Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/0a/bbd9be8e1713818f0cfd108b35fec69aa8696e92532f3fac5d1c73a593e0/nbdev-2.4.14-py3-none-any.whl", hash = "sha256:322ba26d31bc967a235258132d950038d440ed0c52fab6dafa9ef5da3182c003", size = 72689, upload-time = "2026-01-20T22:02:41.046Z" },
 ]
 
 [[package]]
@@ -2593,6 +2594,7 @@ mlx = [
 [package.dev-dependencies]
 dev = [
     { name = "dowhen" },
+    { name = "execnb" },
     { name = "nbdev" },
     { name = "poethepoet" },
     { name = "pre-commit" },
@@ -2634,7 +2636,8 @@ provides-extras = ["mlx"]
 [package.metadata.requires-dev]
 dev = [
     { name = "dowhen", specifier = ">=0.1.0" },
-    { name = "nbdev", specifier = ">=2.3.37" },
+    { name = "execnb", specifier = "<0.2" },
+    { name = "nbdev", specifier = ">=2.3.37,<3" },
     { name = "poethepoet", specifier = ">=0.33.1" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.3.5" },
