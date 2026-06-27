@@ -6,6 +6,25 @@ use tch::{Device, IndexOp, Kind, Tensor};
 
 use crate::error::{Result, TensorNetworkError};
 
+/// Load the Iris dataset as tensors.
+pub fn load_iris(force_single_precision: bool) -> (Tensor, Tensor) {
+    let dataset = linfa_datasets::iris();
+    let records = dataset.records();
+    let data = Tensor::from_slice(records.as_slice().expect("Iris records are contiguous"))
+        .reshape([records.nrows() as i64, records.ncols() as i64]);
+    let data = if force_single_precision {
+        data.to_kind(Kind::Float)
+    } else {
+        data
+    };
+    let targets = dataset
+        .targets()
+        .iter()
+        .map(|target| *target as i64)
+        .collect::<Vec<_>>();
+    (data, Tensor::from_slice(&targets).to_kind(Kind::Int64))
+}
+
 /// Split a classification dataset class-by-class.
 pub fn split_classification_dataset(
     data: &Tensor,
@@ -80,6 +99,16 @@ pub fn load_mnist_from_cache<P: AsRef<Path>>(
     Ok(tch::vision::mnist::load_dir(cache_path)?)
 }
 
+/// Load cached Fashion-MNIST data through the MNIST IDX reader.
+///
+/// The cache must already contain uncompressed IDX files using the names expected by
+/// `tch::vision::mnist::load_dir`.
+pub fn load_fashion_mnist_from_cache<P: AsRef<Path>>(
+    cache_path: P,
+) -> Result<tch::vision::dataset::Dataset> {
+    load_mnist_from_cache(cache_path)
+}
+
 /// Move a dataset to a device.
 pub fn dataset_to_device(
     dataset: tch::vision::dataset::Dataset,
@@ -91,5 +120,22 @@ pub fn dataset_to_device(
         test_images: dataset.test_images.to_device(device),
         test_labels: dataset.test_labels.to_device(device),
         labels: dataset.labels,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_iris_returns_expected_shapes_and_kinds() {
+        let (data, targets) = load_iris(false);
+        assert_eq!(data.size(), vec![150, 4]);
+        assert_eq!(data.kind(), Kind::Double);
+        assert_eq!(targets.size(), vec![150]);
+        assert_eq!(targets.kind(), Kind::Int64);
+
+        let (data_f32, _) = load_iris(true);
+        assert_eq!(data_f32.kind(), Kind::Float);
     }
 }

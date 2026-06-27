@@ -122,6 +122,58 @@ pub fn kron(matrices: &[Tensor]) -> Tensor {
         .fold(matrices[0].shallow_clone(), |acc, matrix| acc.kron(matrix))
 }
 
+/// Outer product of disjoint quantum gates.
+pub fn gate_outer_product(gates: &[Tensor], matrix_form: bool) -> Tensor {
+    assert!(gates.len() >= 2, "at least 2 gates");
+    let num_qubits = gates
+        .iter()
+        .map(|gate| check_quantum_gate(gate, None, false))
+        .collect::<Vec<_>>();
+    let total_qubits = num_qubits.iter().sum::<i64>() as usize;
+    let labels = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        .chars()
+        .collect::<Vec<_>>();
+    assert!(
+        total_qubits * 2 <= labels.len(),
+        "too many qubits for compact einsum labels"
+    );
+    let mut next_label = 0;
+    let mut left_labels = Vec::new();
+    let mut right_labels = Vec::new();
+    let mut gate_tensors = Vec::new();
+    let mut input_terms = Vec::new();
+    for (gate, &qubits) in gates.iter().zip(num_qubits.iter()) {
+        let left = labels[next_label..next_label + qubits as usize].to_vec();
+        next_label += qubits as usize;
+        let right = labels[next_label..next_label + qubits as usize].to_vec();
+        next_label += qubits as usize;
+        let shape = vec![2; (qubits * 2) as usize];
+        let gate_tensor = if gate.dim() == 2 {
+            gate.reshape(shape.as_slice())
+        } else {
+            gate.shallow_clone()
+        };
+        input_terms.push(left.iter().chain(right.iter()).copied().collect::<String>());
+        left_labels.extend(left);
+        right_labels.extend(right);
+        gate_tensors.push(gate_tensor);
+    }
+    let output = left_labels
+        .iter()
+        .chain(right_labels.iter())
+        .copied()
+        .collect::<String>();
+    let equation = format!("{}->{}", input_terms.join(","), output);
+    let gate_refs = gate_tensors.iter().collect::<Vec<_>>();
+    let product = Tensor::einsum(&equation, &gate_refs, None::<i64>);
+    if matrix_form {
+        let dim = 2_i64.pow(total_qubits as u32);
+        product.reshape([dim, dim])
+    } else {
+        product
+    }
+}
+
 /// Pauli operator selector.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Pauli {
@@ -291,5 +343,29 @@ pub fn rand_gate_tensor(num_qubits: i64, matrix_form: bool, kind: Kind, device: 
     } else {
         let shape = vec![2; (num_qubits * 2) as usize];
         matrix.view(shape.as_slice())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tch::{Device, Kind, Tensor};
+
+    use super::*;
+
+    #[test]
+    fn gate_outer_product_matches_kron_for_matrices() {
+        let x = pauli_operator(Pauli::X, false, false, Device::Cpu);
+        let z = pauli_operator(Pauli::Z, false, false, Device::Cpu);
+        let product = gate_outer_product(&[x.shallow_clone(), z.shallow_clone()], true);
+        let expected = kron(&[x, z]);
+        assert!(product.allclose(&expected, 1e-6, 1e-8, false));
+    }
+
+    #[test]
+    fn gate_outer_product_returns_tensor_form() {
+        let x = pauli_operator(Pauli::X, false, false, Device::Cpu);
+        let id = Tensor::eye(4, (Kind::Float, Device::Cpu));
+        let product = gate_outer_product(&[x, id], false);
+        assert_eq!(product.size(), vec![2, 2, 2, 2, 2, 2]);
     }
 }

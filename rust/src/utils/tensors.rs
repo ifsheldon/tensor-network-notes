@@ -21,8 +21,8 @@ pub fn identity_tensor(order: i64, dim: i64, kind: Kind, device: Device) -> Tens
 /// Compute the outer product of a non-empty list of vectors.
 pub fn outer_product(vectors: &[Tensor]) -> Tensor {
     assert!(
-        vectors.len() >= 2,
-        "At least two vectors are required for outer product"
+        !vectors.is_empty(),
+        "At least one vector is required for outer product"
     );
     for (idx, vector) in vectors.iter().enumerate() {
         assert_eq!(

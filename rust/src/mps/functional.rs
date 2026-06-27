@@ -46,6 +46,53 @@ pub fn gen_random_mps_tensors(
     }
 }
 
+/// Calculate the global tensor by a single explicit contraction expression.
+pub fn calc_global_tensor_by_contract(mps_tensors: &[Tensor]) -> Tensor {
+    assert!(!mps_tensors.is_empty(), "MPS must have at least one tensor");
+    let length = mps_tensors.len();
+    let labels = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        .chars()
+        .collect::<Vec<_>>();
+    assert!(
+        2 * length + 1 <= labels.len(),
+        "MPS is too long for compact einsum labels"
+    );
+    let mps_type = MPSType::from_tensors(mps_tensors);
+    let mut next_label = 0;
+    let first_left = labels[next_label];
+    next_label += 1;
+    let mut previous_right = None;
+    let mut physical_labels = Vec::with_capacity(length);
+    let mut input_terms = Vec::with_capacity(length);
+    let mut endpoint_right = first_left;
+    for idx in 0..length {
+        let left = previous_right.unwrap_or(first_left);
+        let physical = labels[next_label];
+        next_label += 1;
+        let right = if idx + 1 == length && mps_type == MPSType::Periodic {
+            first_left
+        } else {
+            let label = labels[next_label];
+            next_label += 1;
+            label
+        };
+        input_terms.push([left, physical, right].into_iter().collect::<String>());
+        physical_labels.push(physical);
+        previous_right = Some(right);
+        endpoint_right = right;
+    }
+    let output = match mps_type {
+        MPSType::Open => std::iter::once(first_left)
+            .chain(physical_labels.iter().copied())
+            .chain(std::iter::once(endpoint_right))
+            .collect::<String>(),
+        MPSType::Periodic => physical_labels.iter().collect::<String>(),
+    };
+    let equation = format!("{}->{}", input_terms.join(","), output);
+    let tensor_refs = mps_tensors.iter().collect::<Vec<_>>();
+    Tensor::einsum(&equation, &tensor_refs, None::<i64>).squeeze()
+}
+
 /// Calculate the global tensor by sequential tensordot.
 pub fn calc_global_tensor_by_tensordot(mps_tensors: &[Tensor]) -> Tensor {
     assert!(!mps_tensors.is_empty(), "MPS must have at least one tensor");
@@ -508,5 +555,22 @@ impl ProjectToStates<'_> {
 fn push_unique(values: &mut Vec<usize>, value: usize) {
     if !values.contains(&value) {
         values.push(value);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tch::{Device, Kind};
+
+    use super::*;
+
+    #[test]
+    fn global_tensor_contract_matches_tensordot_for_open_and_periodic_mps() {
+        for mps_type in [MPSType::Open, MPSType::Periodic] {
+            let tensors = gen_random_mps_tensors(4, 2, 3, mps_type, Kind::Float, Device::Cpu);
+            let contract = calc_global_tensor_by_contract(&tensors);
+            let tensordot = calc_global_tensor_by_tensordot(&tensors);
+            assert!(contract.allclose(&tensordot, 1e-5, 1e-6, false));
+        }
     }
 }

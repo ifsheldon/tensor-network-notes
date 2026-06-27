@@ -136,6 +136,126 @@ pub fn eval_nll(samples: &Tensor, mps: &MPS, device: Device, return_avg: bool) -
     }
 }
 
+fn check_selected_feature_indices(indices: &[usize], feature_num: usize) {
+    let mut seen = vec![false; feature_num];
+    for &idx in indices {
+        assert!(idx < feature_num, "selected feature index out of range");
+        assert!(!seen[idx], "indices must be unique");
+        seen[idx] = true;
+    }
+}
+
+/// Evaluate NLL using selected feature positions while tracing out the rest.
+pub fn eval_nll_selected_features(
+    samples: &Tensor,
+    mps: &MPS,
+    indices: &[usize],
+    device: Device,
+    return_avg: bool,
+) -> Tensor {
+    let samples = samples.to_device(device);
+    assert_eq!(
+        samples.dim(),
+        3,
+        "samples must have shape (dataset, feature, dim)"
+    );
+    let center = mps.center().expect("mps.center must not be None");
+    let (dataset_size, feature_num, _) = samples.size3().expect("3D samples");
+    assert_eq!(feature_num as usize, mps.len());
+    check_selected_feature_indices(indices, feature_num as usize);
+    let tensors = mps
+        .local_tensors()
+        .into_iter()
+        .map(|tensor| tensor.to_device(device))
+        .collect::<Vec<_>>();
+    let mut env_left = Tensor::ones([dataset_size, 1, 1], (samples.kind(), device));
+    let mut env_right = Tensor::ones([dataset_size, 1, 1], (samples.kind(), device));
+    let mut factors: Vec<Option<Tensor>> = (0..mps.len()).map(|_| None).collect();
+    for idx in 0..center {
+        let local = &tensors[idx];
+        env_left = if indices.contains(&idx) {
+            let projected = Tensor::einsum(
+                "lpr,bp->blr",
+                &[local, &samples.i((.., idx as i64, ..))],
+                None::<i64>,
+            );
+            Tensor::einsum(
+                "blr,blm,bms->brs",
+                &[&projected.conj(), &env_left, &projected],
+                None::<i64>,
+            )
+        } else {
+            Tensor::einsum(
+                "lpr,blm,mps->brs",
+                &[&local.conj(), &env_left, local],
+                None::<i64>,
+            )
+        };
+        let norm = env_left.norm_scalaropt_dim(2.0, [1, 2].as_slice(), false);
+        env_left = &env_left / (norm.reshape([dataset_size, 1, 1]) + EPS);
+        factors[idx] = Some(norm);
+    }
+    for idx in (center + 1..mps.len()).rev() {
+        let local = &tensors[idx];
+        env_right = if indices.contains(&idx) {
+            let projected = Tensor::einsum(
+                "lpr,bp->blr",
+                &[local, &samples.i((.., idx as i64, ..))],
+                None::<i64>,
+            );
+            Tensor::einsum(
+                "blr,brs,bms->blm",
+                &[&projected.conj(), &env_right, &projected],
+                None::<i64>,
+            )
+        } else {
+            Tensor::einsum(
+                "lpr,brs,mps->blm",
+                &[&local.conj(), &env_right, local],
+                None::<i64>,
+            )
+        };
+        let norm = env_right.norm_scalaropt_dim(2.0, [1, 2].as_slice(), false);
+        env_right = &env_right / (norm.reshape([dataset_size, 1, 1]) + EPS);
+        factors[idx] = Some(norm);
+    }
+    let center_tensor = &tensors[center];
+    let center_norm = if indices.contains(&center) {
+        let projected = Tensor::einsum(
+            "lpr,bp->blr",
+            &[center_tensor, &samples.i((.., center as i64, ..))],
+            None::<i64>,
+        );
+        Tensor::einsum(
+            "bac,bal,blr,bcr->b",
+            &[&projected.conj(), &env_left, &projected, &env_right],
+            None::<i64>,
+        )
+        .abs()
+    } else {
+        Tensor::einsum(
+            "apc,lpr,bal,bcr->b",
+            &[&center_tensor.conj(), center_tensor, &env_left, &env_right],
+            None::<i64>,
+        )
+        .abs()
+    };
+    factors[center] = Some(center_norm);
+    let stacked = Tensor::stack(
+        &factors
+            .into_iter()
+            .map(|factor| factor.expect("all factors filled"))
+            .collect::<Vec<_>>(),
+        1,
+    );
+    let nll = calc_nll(&stacked);
+    if return_avg {
+        nll.mean(None::<Kind>)
+    } else {
+        nll
+    }
+}
+
 /// Train a GMPS model with the sweep algorithm.
 pub fn train_gmps(
     samples: &Tensor,
@@ -388,6 +508,31 @@ pub fn gmps_classify(gmpss: &[MPS], data: &Tensor) -> Tensor {
     Tensor::stack(&nlls, 1).argmin(1, false)
 }
 
+/// Classify data with selected feature positions.
+pub fn gmps_classify_with_selected_features(
+    gmpss: &[MPS],
+    data: &Tensor,
+    indices: &[usize],
+) -> Tensor {
+    assert!(!gmpss.is_empty(), "No GMPSs provided");
+    assert_eq!(
+        data.dim(),
+        3,
+        "Data must be a 3D tensor of shape (batch, feature_num, feature_dim)"
+    );
+    let feature_num = data.size()[1] as usize;
+    assert_eq!(feature_num, gmpss[0].len(), "Feature number mismatch");
+    check_selected_feature_indices(indices, feature_num);
+    if indices.len() == feature_num {
+        return gmps_classify(gmpss, data);
+    }
+    let nlls = gmpss
+        .iter()
+        .map(|gmps| eval_nll_selected_features(data, gmps, indices, gmps.device(), false))
+        .collect::<Vec<_>>();
+    Tensor::stack(&nlls, 1).argmin(1, false)
+}
+
 fn argsort_ranks(indices: &[usize]) -> Vec<usize> {
     let mut pairs: Vec<(usize, usize)> = indices.iter().copied().enumerate().collect();
     pairs.sort_by_key(|(_, value)| *value);
@@ -396,4 +541,29 @@ fn argsort_ranks(indices: &[usize]) -> Vec<usize> {
         ranks[original] = rank;
     }
     ranks
+}
+
+#[cfg(test)]
+mod tests {
+    use tch::{Device, Kind, Tensor};
+
+    use super::*;
+
+    #[test]
+    fn selected_feature_nll_and_classifier_return_batch_outputs() {
+        let mut mps = MPS::random(4, 2, 2, MPSType::Open, Kind::Float, Device::Cpu, false);
+        mps.center_orthogonalize(1, OrthogonalizationMode::Qr, None, true, true);
+        let raw = Tensor::rand([3, 4], (Kind::Float, Device::Cpu));
+        let samples = cossin_feature_map(&raw, 0.5, true);
+        let nll = eval_nll_selected_features(&samples, &mps, &[0, 2], Device::Cpu, false);
+        assert_eq!(nll.size(), vec![3]);
+        assert_eq!(nll.isnan().any().int64_value(&[]), 0);
+
+        let predictions = gmps_classify_with_selected_features(
+            &[mps.shallow_clone(), mps.shallow_clone()],
+            &samples,
+            &[0, 2],
+        );
+        assert_eq!(predictions.size(), vec![3]);
+    }
 }

@@ -29,7 +29,7 @@ pub fn evolve_gate_2body(
     let eye = Tensor::eye(g_dim, (Kind::Int, mps_local_tensors[0].device()));
     for tensor in local_tensors.iter_mut().take(p1).skip(p0 + 1) {
         let current = tensor.shallow_clone();
-        let expanded = Tensor::einsum("ab,lpr->al pbr", &[&eye, &current], None::<i64>);
+        let expanded = Tensor::einsum("ab,lpr->alpbr", &[&eye, &current], None::<i64>);
         let size = expanded.size();
         *tensor = expanded.reshape([size[0] * size[1], size[2], size[3] * size[4]]);
     }
