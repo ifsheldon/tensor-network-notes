@@ -48,6 +48,15 @@
 //! cargo doc --no-deps
 //! ```
 
+pub mod algorithms;
+pub mod error;
+pub mod feature_mapping;
+pub mod mps;
+pub mod quantum_state;
+pub mod tensor_gates;
+pub mod types;
+pub mod utils;
+
 /// Returns the Cargo package name used for the Rust crate.
 ///
 /// This is intentionally simple while the Rust side is being bootstrapped.

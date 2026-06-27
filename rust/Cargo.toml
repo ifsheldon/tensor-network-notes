@@ -5,8 +5,12 @@ edition = "2024"
 
 [features]
 default = []
-python-interop = ["dep:pyo3", "dep:tch"]
+python-interop = ["dep:pyo3", "tch/python-extension"]
 
 [dependencies]
 pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
-tch = { path = "tch-rs", features = ["python-extension"], optional = true }
+tch = { path = "tch-rs" }
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"

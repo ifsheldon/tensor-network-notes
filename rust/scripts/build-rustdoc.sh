@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
+. "$(dirname "$0")/libtorch-env.sh"
+
 cargo doc --no-deps
 
 image_dir="target/doc/tensor_network_code/images"

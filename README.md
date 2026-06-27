@@ -42,7 +42,7 @@ MLX notebooks are intentionally excluded from the Torch smoke tasks, and locally
 The repository also contains a Cargo library crate named `tensor-network-code` in `rust/` for step-by-step Rust experiments.
 
 Useful commands:
-* `poe rusttest`: run the Rust tests
+* `poe rusttest`: run the Rust tests with the pinned PyTorch/libtorch environment
 * `poe rustdoc`: build the Rust API documentation, copy local image assets, and print the local serving path
 * `cd rust && cargo doc --no-deps`: build the Rust API documentation
 * `poe rusttest_interop`: run the optional PyTorch-to-`tch-rs` tensor interop experiment with the pinned `uv` Torch environment
@@ -54,7 +54,9 @@ The initial rustdoc experiments live in standard Rust doc comments in `rust/src/
 Images use normal Markdown links like `![image](images/image.png)` and reference the shared `images/` directory through `rust/images`.
 The local image assets are copied into the generated rustdoc directory by `poe rustdoc`.
 Equations are rendered by MathJax through `rust/.cargo/config.toml` and `rust/docs/rustdoc-header.html`.
-The PyTorch interop experiment is behind Cargo feature `python-interop` because it needs `tch`, `LIBTORCH_USE_PYTORCH=1`, an embeddable CPython 3.12 interpreter, and the Torch package installed by `uv`.
+The Rust crate uses `tch-rs` and the pinned PyTorch/libtorch package installed by `uv`.
+The Rust helper scripts configure `LIBTORCH_USE_PYTORCH=1`, `PYTHONPATH`, and `LD_LIBRARY_PATH` before invoking Cargo.
+The PyTorch interop experiment is behind Cargo feature `python-interop` because it also needs PyO3 and an embeddable CPython 3.12 interpreter.
 The Rust crate uses the patched `tch 0.25.1` fork pinned as the `rust/tch-rs` submodule so it can build against the repo's `torch==2.12.1` Python dependency.
 
 ## Trained MPS Checkpoints

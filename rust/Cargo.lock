@@ -780,6 +780,8 @@ version = "0.1.0"
 dependencies = [
  "pyo3",
  "tch",
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]
