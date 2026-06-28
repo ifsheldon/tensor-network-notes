@@ -15,6 +15,17 @@ The remaining work is mostly API parity, training/workflow ergonomics, artifact 
 - Implemented MPS safetensors read/write with Python-compatible keys, but cross-language fixture tests are still pending.
 - Last verified checks during the port: `uv run poe rusttest`, `uv run poe rusttest_interop`, and `uv run poe rustdoc`.
 
+## Completed Python API Parity
+
+### Dataset Helpers
+
+Rust has `load_iris`, cached MNIST loading, cached Fashion-MNIST loading through the MNIST-format reader, `dataset_to_device`, and `split_classification_dataset`.
+Rust now has a typed high-level image loading layer for MNIST-compatible cached datasets, including subset selection, class filtering, shuffling, truncation, device movement, and explicit preprocessing.
+The default preprocessing is unit-range because range-checked quantum feature maps expect values in `[0, 1]`.
+Standardized MNIST remains available through the explicit MNIST mean/std option for classical and hybrid classifier workflows.
+Fashion-MNIST intentionally has no standardized preprocessing constant because the Python notebooks use unit-range `ToTensor()` behavior and no current caller needs a second convention.
+Rust image dataset loading is intentionally cache-only; dataset download remains a Python-side workflow.
+
 ## Deferred Design Work
 
 ### `MPSParameter`
@@ -32,32 +43,15 @@ Open design questions:
 
 ## Missing Or Partial Python API Parity
 
-### Dataset Helpers
-
-Rust has `load_iris`, cached MNIST loading, cached Fashion-MNIST loading through the MNIST-format reader, `dataset_to_device`, and `split_classification_dataset`.
-Rust now has a typed high-level image loading layer for MNIST-compatible cached datasets, including subset selection, class filtering, shuffling, truncation, device movement, and explicit preprocessing.
-The default preprocessing is unit-range because range-checked quantum feature maps expect values in `[0, 1]`.
-Standardized MNIST remains available through the explicit MNIST mean/std option for classical and hybrid classifier workflows.
-Fashion-MNIST intentionally has no standardized preprocessing constant because the Python notebooks use unit-range `ToTensor()` behavior and no current caller needs a second convention.
-Rust image dataset loading is intentionally cache-only; dataset download remains a Python-side workflow.
-
-Remaining work:
-
-- Add broader CUDA-gated coverage for image selection once a CUDA CI target is available.
-
 ### Generic Tensor Utilities
 
 Rust ports the utility behavior needed by current algorithms, but not every Python helper exists as a public reusable function.
 The `rust/einops-rs` submodule has `einsumstr!`, `einsum_str`, `contract_str!`, and `contract_str` helpers for readable named-dimension patterns.
-The tensor-network Rust crate now uses `tensor_contract` for named shared-dimension contractions and `einops!` for fixed literal layout transforms in TEBD, MPS two-body reduced-density matrices, ResMPS boundary-vector expansion, and ADQCRNN auxiliary-state batching.
-ADQCRNN still keeps the runtime auxiliary-state flattening explicit because the number of auxiliary qubits is dynamic, but the fixed batch-repeat step uses `einops!`.
+The tensor-network Rust crate now uses `tensor_contract` for named shared-dimension contractions, `einsumstr!` for fixed literal production contractions, and `einops!` for fixed literal layout transforms in TEBD, MPS two-body reduced-density matrices, ResMPS boundary-vector expansion, and ADQCRNN auxiliary-state batching and flattening.
+Dynamic-layout sites such as `gate_outer_product` and QRNN basis projection intentionally remain explicit because their layouts depend on runtime qubit counts and basis selection.
 
 Remaining work:
 
-- Replace hand-written compact `Tensor::einsum` strings with `einsumstr!` or `einsum_str` where this improves auditability without hiding dynamic shape intent.
-- Keep `gate_outer_product` explicit until a runtime rearrange API or clearer abstraction exists, because its layout and label count are determined dynamically from the number of qubits per gate.
-- Keep QRNN projection explicit until a runtime rearrange API or clearer abstraction exists, because it depends on runtime auxiliary and feature qubit counts plus basis selection.
-- Keep explicit `reshape`, `permute`, `unsqueeze`, and `repeat` code at call sites where it is clearer than introducing `einops!`, especially for very small fixed layouts.
 - Consider typed wrappers for common shape assumptions such as state tensors, gate tensors, and feature-mapped samples if assertions become too scattered.
 
 ### Gate API Overloads
