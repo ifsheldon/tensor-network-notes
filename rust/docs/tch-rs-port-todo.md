@@ -48,10 +48,16 @@ Remaining work:
 ### Generic Tensor Utilities
 
 Rust ports the utility behavior needed by current algorithms, but not every Python helper exists as a public reusable function.
+Some Python `einops` calls are currently hand-lowered in Rust to compact `Tensor::einsum` strings plus explicit `reshape`, `permute`, `unsqueeze`, and `repeat` calls.
+The `rust/einops-rs` submodule now has `einsumstr!`, `einsum_str`, `contract_str!`, and `contract_str` helpers for readable named-dimension patterns, but the tensor-network Rust crate has not been migrated to use them yet.
 
 Remaining work:
 
-- Decide whether to port Python `tensor_contract` as a public named-dimension contraction helper or keep using explicit `Tensor::einsum` call sites.
+- Implement Python `tensor_contract` parity on top of `einops-rs` contract-string lowering.
+- Replace hand-written compact `Tensor::einsum` strings with `einsumstr!` or `einsum_str` where this improves auditability without hiding dynamic shape intent.
+- Evaluate whether `einops-rs` `einops!` cleanly covers the current hand-written `rearrange` ports in `gate_outer_product`, TEBD gate factorization, TEBD intermediate-tensor expansion, two-body reduced-density matrices, and QRNN projection.
+- Evaluate whether `einops-rs` `einops!` cleanly covers the current hand-written `repeat` ports in `ResMPSSimple` boundary-vector expansion and `ADQCRNN` auxiliary-state batching.
+- Keep explicit `reshape`, `permute`, `unsqueeze`, and `repeat` code at call sites where it is clearer than introducing `einops!`, especially for very small fixed layouts.
 - Add tests for `identity_tensor`, `normalize_tensor`, `rescale_tensor`, and `zeros_state` beyond incidental use.
 - Consider typed wrappers for common shape assumptions such as state tensors, gate tensors, and feature-mapped samples if assertions become too scattered.
 
