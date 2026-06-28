@@ -1,6 +1,6 @@
 //! Residual MPS network.
 
-use einops::einops;
+use einops::{einops, einsumstr};
 use tch::{Kind, Tensor, nn};
 
 /// A basic residual MPS model.
@@ -68,7 +68,7 @@ impl ResMPSSimple {
         );
         for idx in 0..self.class_idx {
             let latent = Tensor::einsum(
-                "lfr,bl,bf->br",
+                einsumstr!("left feature right, batch left, batch feature -> batch right"),
                 &[
                     &self.local_tensors[idx as usize],
                     &latent_left,
@@ -84,7 +84,7 @@ impl ResMPSSimple {
         );
         for idx in ((self.class_idx + 1)..num_features).rev() {
             let latent = Tensor::einsum(
-                "lfr,br,bf->bl",
+                einsumstr!("left feature right, batch right, batch feature -> batch left"),
                 &[
                     &self.local_tensors[idx as usize],
                     &latent_right,
@@ -95,7 +95,9 @@ impl ResMPSSimple {
             latent_right = latent + latent_right;
         }
         let activation = Tensor::einsum(
-            "lfrc,bl,br,bf->bc",
+            einsumstr!(
+                "left feature right classes, batch left, batch right, batch feature -> batch classes"
+            ),
             &[
                 &self.local_tensors[self.class_idx as usize],
                 &latent_left,
@@ -115,6 +117,52 @@ mod tests {
 
     use super::*;
 
+    fn raw_forward(model: &ResMPSSimple, features: &Tensor) -> Tensor {
+        let (batch, _, _) = features.size3().expect("3D features");
+        let mut latent_left = model
+            .contract_vector_left
+            .reshape([1, -1])
+            .repeat([batch, 1]);
+        for idx in 0..model.class_idx {
+            let latent = Tensor::einsum(
+                "lfr,bl,bf->br",
+                &[
+                    &model.local_tensors[idx as usize],
+                    &latent_left,
+                    &features.select(1, idx),
+                ],
+                None::<i64>,
+            );
+            latent_left = latent + latent_left;
+        }
+        let mut latent_right = model
+            .contract_vector_right
+            .reshape([1, -1])
+            .repeat([batch, 1]);
+        for idx in ((model.class_idx + 1)..model.num_features).rev() {
+            let latent = Tensor::einsum(
+                "lfr,br,bf->bl",
+                &[
+                    &model.local_tensors[idx as usize],
+                    &latent_right,
+                    &features.select(1, idx),
+                ],
+                None::<i64>,
+            );
+            latent_right = latent + latent_right;
+        }
+        Tensor::einsum(
+            "lfrc,bl,br,bf->bc",
+            &[
+                &model.local_tensors[model.class_idx as usize],
+                &latent_left,
+                &latent_right,
+                &features.select(1, model.class_idx),
+            ],
+            None::<i64>,
+        )
+    }
+
     #[test]
     fn residual_mps_forward_shape_matches_classes() {
         let vs = nn::VarStore::new(Device::Cpu);
@@ -122,5 +170,7 @@ mod tests {
         let features = Tensor::rand([7, 5, 2], (Kind::Float, Device::Cpu));
         let out = model.forward(&features);
         assert_eq!(out.size(), vec![7, 3]);
+        let expected = raw_forward(&model, &features);
+        assert!(out.allclose(&expected, 1e-5, 1e-8, false));
     }
 }

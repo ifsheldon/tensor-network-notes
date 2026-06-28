@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use einops::einops;
+use einops::{einops, einsumstr};
 use tch::{Device, IndexOp, Kind, Tensor};
 
 use crate::error::{Result, TensorNetworkError};
@@ -460,7 +460,7 @@ impl MPS {
             new_tensors[idx].shallow_clone()
         };
         let rdm = Tensor::einsum(
-            "lmr,lnr->mn",
+            einsumstr!("left physical right, left physical_conj right -> physical physical_conj"),
             &[&center_tensor, &center_tensor.conj()],
             None::<i64>,
         );
@@ -548,28 +548,34 @@ impl MPS {
         );
         let tensor_left = &self.tensors[qubit_idx0];
         let mut product = Tensor::einsum(
-            "apr,bps->pbrs",
+            einsumstr!(
+                "left physical_conj right_conj, left physical right -> physical_conj physical right_conj right"
+            ),
             &[&tensor_left.conj(), tensor_left],
             None::<i64>,
         );
         for idx in qubit_idx0 + 1..qubit_idx1 {
             let tensor_i = &self.tensors[idx];
             product = Tensor::einsum(
-                "ijab,apc,bpd->ijcd",
+                einsumstr!(
+                    "i0_physical_conj i0_physical left_conj left, left_conj physical right_conj, left physical right -> i0_physical_conj i0_physical right_conj right"
+                ),
                 &[&product, &tensor_i.conj(), tensor_i],
                 None::<i64>,
             );
         }
         let tensor_right = &self.tensors[qubit_idx1];
         let rdm = Tensor::einsum(
-            "ijab,apc,bqd->ijpq",
+            einsumstr!(
+                "i0_physical_conj i0_physical left_conj left, left_conj i1_physical_conj right, left i1_physical right -> i0_physical i1_physical i0_physical_conj i1_physical_conj"
+            ),
             &[&product, &tensor_right.conj(), tensor_right],
             None::<i64>,
         );
         if return_matrix {
-            einops!("i j p q -> (i p) (j q)", &rdm)
+            einops!("i0 i1 i0_conj i1_conj -> (i0 i1) (i0_conj i1_conj)", &rdm)
         } else {
-            einops!("i j p q -> i p j q", &rdm)
+            rdm
         }
     }
 }
@@ -615,8 +621,7 @@ fn normalize_index(index: isize, length: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use einops::einops;
-    use tch::{Device, Kind};
+    use tch::{Device, Kind, Tensor};
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -656,15 +661,44 @@ mod tests {
         assert_eq!(loaded.local_tensor(0).size(), mps.local_tensor(0).size());
     }
 
-    #[test]
-    fn two_body_rdm_layout_matches_raw_permute_and_reshape_reference() {
-        let rdm = Tensor::arange(36, (Kind::Float, Device::Cpu)).reshape([2, 2, 3, 3]);
-        let tensor = einops!("i j p q -> i p j q", &rdm);
-        let expected_tensor = rdm.permute([0, 2, 1, 3]);
-        assert!(tensor.allclose(&expected_tensor, 1e-5, 1e-8, false));
+    fn raw_two_body_rdm_python_order(mps: &mut MPS, i0: usize, i1: usize) -> Tensor {
+        mps.center_orthogonalize(i0 as isize, OrthogonalizationMode::Qr, None, true, true);
+        let tensor_left = mps.local_tensor(i0);
+        let mut product = Tensor::einsum(
+            "apr,aqs->pqrs",
+            &[&tensor_left.conj(), tensor_left],
+            None::<i64>,
+        );
+        for idx in i0 + 1..i1 {
+            let tensor_i = mps.local_tensor(idx);
+            product = Tensor::einsum(
+                "ijab,apc,bpd->ijcd",
+                &[&product, &tensor_i.conj(), tensor_i],
+                None::<i64>,
+            );
+        }
+        let tensor_right = mps.local_tensor(i1);
+        Tensor::einsum(
+            "ijab,apc,bqc->jqip",
+            &[&product, &tensor_right.conj(), tensor_right],
+            None::<i64>,
+        )
+    }
 
-        let matrix = einops!("i j p q -> (i p) (j q)", &rdm);
-        let expected_matrix = rdm.permute([0, 2, 1, 3]).reshape([6, 6]);
-        assert!(matrix.allclose(&expected_matrix, 1e-5, 1e-8, false));
+    #[test]
+    fn two_body_rdm_matches_raw_python_order_reference() {
+        let base = MPS::random(4, 2, 3, MPSType::Open, Kind::Float, Device::Cpu, false);
+        let mut actual_mps = base.shallow_clone();
+        let mut expected_mps = base.shallow_clone();
+        let actual = actual_mps.two_body_reduced_density_matrix(1, 3, false);
+        let expected = raw_two_body_rdm_python_order(&mut expected_mps, 1, 3);
+        assert!(actual.allclose(&expected, 1e-5, 1e-6, false));
+
+        let mut actual_mps = base.shallow_clone();
+        let mut expected_mps = base.shallow_clone();
+        let actual_matrix = actual_mps.two_body_reduced_density_matrix(1, 3, true);
+        let expected_matrix =
+            raw_two_body_rdm_python_order(&mut expected_mps, 1, 3).reshape([4, 4]);
+        assert!(actual_matrix.allclose(&expected_matrix, 1e-5, 1e-6, false));
     }
 }

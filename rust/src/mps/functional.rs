@@ -1,5 +1,6 @@
 //! Functional MPS helpers.
 
+use einops::einsumstr;
 use tch::{Device, IndexOp, Kind, Tensor};
 
 use crate::types::{MPSType, OrthogonalizationMode};
@@ -56,10 +57,12 @@ pub fn calc_global_tensor_by_contract(mps_tensors: &[Tensor]) -> Tensor {
     if length == 1 {
         return match mps_type {
             MPSType::Open => mps_tensors[0].squeeze(),
-            MPSType::Periodic => {
-                let equation = einops::einsum_str("left physical left -> physical");
-                Tensor::einsum(&equation, &[&mps_tensors[0]], None::<i64>).squeeze()
-            }
+            MPSType::Periodic => Tensor::einsum(
+                einsumstr!("left physical left -> physical"),
+                &[&mps_tensors[0]],
+                None::<i64>,
+            )
+            .squeeze(),
         };
     }
 
@@ -125,11 +128,25 @@ pub fn calculate_mps_norm_factors(mps_tensors: &[Tensor], efficient_mode: bool) 
             let mut factors = Vec::with_capacity(length);
             for i in 0..length {
                 if efficient_mode {
-                    v = Tensor::einsum("ab,aix->bix", &[&v, &conjugates[i]], None::<i64>);
-                    v = Tensor::einsum("bix,biy->xy", &[&v, &mps_tensors[i]], None::<i64>);
+                    v = Tensor::einsum(
+                        einsumstr!(
+                            "env_left_conj env_left, env_left_conj physical right_conj -> env_left physical right_conj"
+                        ),
+                        &[&v, &conjugates[i]],
+                        None::<i64>,
+                    );
+                    v = Tensor::einsum(
+                        einsumstr!(
+                            "env_left physical right_conj, env_left physical right -> right_conj right"
+                        ),
+                        &[&v, &mps_tensors[i]],
+                        None::<i64>,
+                    );
                 } else {
                     v = Tensor::einsum(
-                        "ab,aix,biy->xy",
+                        einsumstr!(
+                            "env_left_conj env_left, env_left_conj physical right_conj, env_left physical right -> right_conj right"
+                        ),
                         &[&v, &conjugates[i], &mps_tensors[i]],
                         None::<i64>,
                     );
@@ -151,7 +168,9 @@ pub fn calculate_mps_norm_factors(mps_tensors: &[Tensor], efficient_mode: bool) 
             ]);
             for i in 0..length {
                 v = Tensor::einsum(
-                    "uvap,adb,pdq->uvbq",
+                    einsumstr!(
+                        "trace_conj trace left_conj left, left_conj physical right_conj, left physical right -> trace_conj trace right_conj right"
+                    ),
                     &[&v, &conjugates[i], &mps_tensors[i]],
                     None::<i64>,
                 );
@@ -159,7 +178,11 @@ pub fn calculate_mps_norm_factors(mps_tensors: &[Tensor], efficient_mode: bool) 
                 v = &v / &norm_factor;
                 factors.push(norm_factor);
             }
-            let final_factor = Tensor::einsum("acac->", &[&v], None::<i64>);
+            let final_factor = Tensor::einsum(
+                einsumstr!("left_conj left left_conj left ->"),
+                &[&v],
+                None::<i64>,
+            );
             let last = factors.pop().expect("length checked");
             factors.push(last * final_factor);
             Tensor::stack(&factors, 0)
@@ -193,11 +216,19 @@ pub fn calc_inner_product(mps0: &[Tensor], mps1: &[Tensor]) -> Tensor {
     let device = mps0[0].device();
     let v0 = Tensor::eye(endpoint0, (kind, device));
     let v1 = Tensor::eye(endpoint1, (kind, device));
-    let mut v = Tensor::einsum("ab,xy->axby", &[&v0, &v1], None::<i64>);
+    let mut v = Tensor::einsum(
+        einsumstr!(
+            "mps0_left mps0_right, mps1_left mps1_right -> mps0_left mps1_left mps0_right mps1_right"
+        ),
+        &[&v0, &v1],
+        None::<i64>,
+    );
     let mut factors = Vec::with_capacity(mps0.len() + 1);
     for i in 0..mps0.len() {
         v = Tensor::einsum(
-            "uvap,adb,pdq->uvbq",
+            einsumstr!(
+                "trace0 trace1 left0 left1, left0 physical right0, left1 physical right1 -> trace0 trace1 right0 right1"
+            ),
             &[&v, &mps0[i].conj(), &mps1[i]],
             None::<i64>,
         );
@@ -206,7 +237,11 @@ pub fn calc_inner_product(mps0: &[Tensor], mps1: &[Tensor]) -> Tensor {
         factors.push(product_factor);
     }
     if v.numel() > 1 {
-        factors.push(Tensor::einsum("acac->", &[&v], None::<i64>));
+        factors.push(Tensor::einsum(
+            einsumstr!("left0 left1 left0 left1 ->"),
+            &[&v],
+            None::<i64>,
+        ));
     } else {
         factors.push(v.reshape([]));
     }
@@ -268,7 +303,7 @@ pub fn orthogonalize_left2right_step(
     }
     let new_local_tensor = u.reshape([shape[0], shape[1], -1]);
     let new_local_tensor_right = Tensor::einsum(
-        "ab,bcd->acd",
+        einsumstr!("new_left old_left, old_left physical right -> new_left physical right"),
         &[&r, &mps_tensors[local_tensor_idx + 1]],
         None::<i64>,
     );
@@ -340,7 +375,7 @@ pub fn orthogonalize_right2left_step(
     }
     let new_local_tensor = u.transpose(0, 1).reshape([-1, shape[1], shape[2]]);
     let new_local_tensor_left = Tensor::einsum(
-        "abc,dc->abd",
+        einsumstr!("left physical old_right, new_right old_right -> left physical new_right"),
         &[&mps_tensors[local_tensor_idx - 1], &r],
         None::<i64>,
     );
@@ -491,8 +526,11 @@ pub fn project_multi_qubits(
                     state.size()[0],
                     "The feature dimension of the project_to_states must match the physical dimension of the local tensor of MPS"
                 );
-                local_tensors[qubit_idx] =
-                    Tensor::einsum("lpr,p->lr", &[local, &state], None::<i64>);
+                local_tensors[qubit_idx] = Tensor::einsum(
+                    einsumstr!("left physical right, physical -> left right"),
+                    &[local, &state],
+                    None::<i64>,
+                );
             }
         }
         ProjectToStates::Indices(states) => {
@@ -561,9 +599,89 @@ fn push_unique(values: &mut Vec<usize>, value: usize) {
 
 #[cfg(test)]
 mod tests {
-    use tch::{Device, Kind};
+    use tch::{Device, Kind, Tensor};
 
     use super::*;
+
+    fn raw_norm_factors(mps_tensors: &[Tensor], efficient_mode: bool) -> Tensor {
+        let conjugates: Vec<Tensor> = mps_tensors.iter().map(Tensor::conj).collect();
+        let length = mps_tensors.len();
+        let device = conjugates[0].device();
+        let kind = conjugates[0].kind();
+        match MPSType::from_tensors(mps_tensors) {
+            MPSType::Open => {
+                let mut v = Tensor::ones([1, 1], (kind, device));
+                let mut factors = Vec::with_capacity(length);
+                for i in 0..length {
+                    if efficient_mode {
+                        v = Tensor::einsum("ab,acd->bcd", &[&v, &conjugates[i]], None::<i64>);
+                        v = Tensor::einsum("abc,abd->cd", &[&v, &mps_tensors[i]], None::<i64>);
+                    } else {
+                        v = Tensor::einsum(
+                            "ab,acd,bce->de",
+                            &[&v, &conjugates[i], &mps_tensors[i]],
+                            None::<i64>,
+                        );
+                    }
+                    let norm_factor = v.norm();
+                    v = &v / &norm_factor;
+                    factors.push(norm_factor);
+                }
+                Tensor::stack(&factors, 0)
+            }
+            MPSType::Periodic => {
+                let virtual_dim = mps_tensors[0].size()[0];
+                let mut factors = Vec::with_capacity(length);
+                let mut v = Tensor::eye(virtual_dim * virtual_dim, (kind, device)).reshape([
+                    virtual_dim,
+                    virtual_dim,
+                    virtual_dim,
+                    virtual_dim,
+                ]);
+                for i in 0..length {
+                    v = Tensor::einsum(
+                        "abcd,cef,deg->abfg",
+                        &[&v, &conjugates[i], &mps_tensors[i]],
+                        None::<i64>,
+                    );
+                    let norm_factor = v.norm();
+                    v = &v / &norm_factor;
+                    factors.push(norm_factor);
+                }
+                let final_factor = Tensor::einsum("abab->", &[&v], None::<i64>);
+                let last = factors.pop().expect("length checked");
+                factors.push(last * final_factor);
+                Tensor::stack(&factors, 0)
+            }
+        }
+    }
+
+    fn raw_inner_product(mps0: &[Tensor], mps1: &[Tensor]) -> Tensor {
+        let endpoint0 = mps0[0].size()[0];
+        let endpoint1 = mps1[0].size()[0];
+        let kind = mps0[0].kind();
+        let device = mps0[0].device();
+        let v0 = Tensor::eye(endpoint0, (kind, device));
+        let v1 = Tensor::eye(endpoint1, (kind, device));
+        let mut v = Tensor::einsum("ab,cd->acbd", &[&v0, &v1], None::<i64>);
+        let mut factors = Vec::with_capacity(mps0.len() + 1);
+        for i in 0..mps0.len() {
+            v = Tensor::einsum(
+                "abcd,cef,deg->abfg",
+                &[&v, &mps0[i].conj(), &mps1[i]],
+                None::<i64>,
+            );
+            let product_factor = v.norm();
+            v = &v / &product_factor;
+            factors.push(product_factor);
+        }
+        if v.numel() > 1 {
+            factors.push(Tensor::einsum("abab->", &[&v], None::<i64>));
+        } else {
+            factors.push(v.reshape([]));
+        }
+        Tensor::stack(&factors, 0)
+    }
 
     #[test]
     fn global_tensor_contract_matches_tensordot_for_open_and_periodic_mps() {
@@ -572,6 +690,29 @@ mod tests {
             let contract = calc_global_tensor_by_contract(&tensors);
             let tensordot = calc_global_tensor_by_tensordot(&tensors);
             assert!(contract.allclose(&tensordot, 1e-5, 1e-6, false));
+        }
+    }
+
+    #[test]
+    fn norm_factors_match_compact_references_for_open_and_periodic_mps() {
+        for mps_type in [MPSType::Open, MPSType::Periodic] {
+            let tensors = gen_random_mps_tensors(4, 2, 3, mps_type, Kind::Float, Device::Cpu);
+            for efficient_mode in [false, true] {
+                let actual = calculate_mps_norm_factors(&tensors, efficient_mode);
+                let expected = raw_norm_factors(&tensors, efficient_mode);
+                assert!(actual.allclose(&expected, 1e-5, 1e-6, false));
+            }
+        }
+    }
+
+    #[test]
+    fn inner_product_matches_compact_references_for_open_and_periodic_mps() {
+        for mps_type in [MPSType::Open, MPSType::Periodic] {
+            let mps0 = gen_random_mps_tensors(4, 2, 3, mps_type, Kind::Float, Device::Cpu);
+            let mps1 = gen_random_mps_tensors(4, 2, 3, mps_type, Kind::Float, Device::Cpu);
+            let actual = calc_inner_product(&mps0, &mps1);
+            let expected = raw_inner_product(&mps0, &mps1);
+            assert!(actual.allclose(&expected, 1e-5, 1e-6, false));
         }
     }
 }

@@ -1,5 +1,6 @@
 //! Generative MPS algorithms.
 
+use einops::einsumstr;
 use tch::{Device, IndexOp, Kind, Tensor};
 
 use crate::feature_mapping::cossin_feature_map;
@@ -15,7 +16,7 @@ pub fn calc_left_to_right_step(
     current_sample: &Tensor,
 ) -> (Tensor, Tensor) {
     let next = Tensor::einsum(
-        "bl,bp,lpr->br",
+        einsumstr!("batch left, batch physical, left physical right -> batch right"),
         &[current_env_vector_left, current_sample, current_tensor],
         None::<i64>,
     );
@@ -30,7 +31,7 @@ pub fn calc_right_to_left_step(
     current_sample: &Tensor,
 ) -> (Tensor, Tensor) {
     let next = Tensor::einsum(
-        "br,bp,lpr->bl",
+        einsumstr!("batch right, batch physical, left physical right -> batch left"),
         &[current_env_vector_right, current_sample, current_tensor],
         None::<i64>,
     );
@@ -54,11 +55,15 @@ pub fn calc_gradient(
     enable_tsgo: bool,
 ) -> Tensor {
     let raw_grad = Tensor::einsum(
-        "bl,bp,br->blpr",
+        einsumstr!("batch left, batch physical, batch right -> batch left physical right"),
         &[env_left_vector, current_sample, env_right_vector],
         None::<i64>,
     );
-    let norm = Tensor::einsum("lpr,blpr->b", &[current_tensor, &raw_grad], None::<i64>);
+    let norm = Tensor::einsum(
+        einsumstr!("left physical right, batch left physical right -> batch"),
+        &[current_tensor, &raw_grad],
+        None::<i64>,
+    );
     let norm = &norm + norm.sign() * EPS;
     let grad_part =
         (raw_grad / norm.view([-1, 1, 1, 1])).mean_dim([0].as_slice(), false, None::<Kind>);
@@ -112,7 +117,7 @@ pub fn eval_nll(samples: &Tensor, mps: &MPS, device: Device, return_avg: bool) -
         env_right = next;
     }
     factors[center] = Some(Tensor::einsum(
-        "lpr,bl,bp,br->b",
+        einsumstr!("left physical right, batch left, batch physical, batch right -> batch"),
         &[
             &tensors[center],
             &env_left,
@@ -175,18 +180,22 @@ pub fn eval_nll_selected_features(
         let local = &tensors[idx];
         env_left = if indices.contains(&idx) {
             let projected = Tensor::einsum(
-                "lpr,bp->blr",
+                einsumstr!("left physical right, batch physical -> batch left right"),
                 &[local, &samples.i((.., idx as i64, ..))],
                 None::<i64>,
             );
             Tensor::einsum(
-                "blr,blm,bms->brs",
+                einsumstr!(
+                    "batch left_conj right_conj, batch left_conj left, batch left right -> batch right_conj right"
+                ),
                 &[&projected.conj(), &env_left, &projected],
                 None::<i64>,
             )
         } else {
             Tensor::einsum(
-                "lpr,blm,mps->brs",
+                einsumstr!(
+                    "left_conj physical right_conj, batch left_conj left, left physical right -> batch right_conj right"
+                ),
                 &[&local.conj(), &env_left, local],
                 None::<i64>,
             )
@@ -199,18 +208,22 @@ pub fn eval_nll_selected_features(
         let local = &tensors[idx];
         env_right = if indices.contains(&idx) {
             let projected = Tensor::einsum(
-                "lpr,bp->blr",
+                einsumstr!("left physical right, batch physical -> batch left right"),
                 &[local, &samples.i((.., idx as i64, ..))],
                 None::<i64>,
             );
             Tensor::einsum(
-                "blr,brs,bms->blm",
+                einsumstr!(
+                    "batch left_conj right_conj, batch right_conj right, batch left right -> batch left_conj left"
+                ),
                 &[&projected.conj(), &env_right, &projected],
                 None::<i64>,
             )
         } else {
             Tensor::einsum(
-                "lpr,brs,mps->blm",
+                einsumstr!(
+                    "left_conj physical right_conj, batch right_conj right, left physical right -> batch left_conj left"
+                ),
                 &[&local.conj(), &env_right, local],
                 None::<i64>,
             )
@@ -222,19 +235,23 @@ pub fn eval_nll_selected_features(
     let center_tensor = &tensors[center];
     let center_norm = if indices.contains(&center) {
         let projected = Tensor::einsum(
-            "lpr,bp->blr",
+            einsumstr!("left physical right, batch physical -> batch left right"),
             &[center_tensor, &samples.i((.., center as i64, ..))],
             None::<i64>,
         );
         Tensor::einsum(
-            "bac,bal,blr,bcr->b",
+            einsumstr!(
+                "batch left_conj right_conj, batch left_conj left, batch left right, batch right_conj right -> batch"
+            ),
             &[&projected.conj(), &env_left, &projected, &env_right],
             None::<i64>,
         )
         .abs()
     } else {
         Tensor::einsum(
-            "apc,lpr,bal,bcr->b",
+            einsumstr!(
+                "left_conj physical right_conj, left physical right, batch left_conj left, batch right_conj right -> batch"
+            ),
             &[&center_tensor.conj(), center_tensor, &env_left, &env_right],
             None::<i64>,
         )
@@ -549,6 +566,53 @@ mod tests {
 
     use super::*;
 
+    fn raw_calc_left_to_right_step(
+        current_tensor: &Tensor,
+        current_env_vector_left: &Tensor,
+        current_sample: &Tensor,
+    ) -> (Tensor, Tensor) {
+        let next = Tensor::einsum(
+            "bl,bp,lpr->br",
+            &[current_env_vector_left, current_sample, current_tensor],
+            None::<i64>,
+        );
+        let norm = next.norm_scalaropt_dim(2.0, [1].as_slice(), true);
+        (&next / (&norm + EPS), norm.squeeze_dim(-1))
+    }
+
+    fn raw_calc_right_to_left_step(
+        current_tensor: &Tensor,
+        current_env_vector_right: &Tensor,
+        current_sample: &Tensor,
+    ) -> (Tensor, Tensor) {
+        let next = Tensor::einsum(
+            "br,bp,lpr->bl",
+            &[current_env_vector_right, current_sample, current_tensor],
+            None::<i64>,
+        );
+        let norm = next.norm_scalaropt_dim(2.0, [1].as_slice(), true);
+        (&next / (&norm + EPS), norm.squeeze_dim(-1))
+    }
+
+    fn raw_calc_gradient(
+        env_left_vector: &Tensor,
+        env_right_vector: &Tensor,
+        current_sample: &Tensor,
+        current_tensor: &Tensor,
+    ) -> Tensor {
+        let raw_grad = Tensor::einsum(
+            "bl,bp,br->blpr",
+            &[env_left_vector, current_sample, env_right_vector],
+            None::<i64>,
+        );
+        let norm = Tensor::einsum("lpr,blpr->b", &[current_tensor, &raw_grad], None::<i64>);
+        let norm = &norm + norm.sign() * EPS;
+        let grad_part =
+            (raw_grad / norm.view([-1, 1, 1, 1])).mean_dim([0].as_slice(), false, None::<Kind>);
+        let grad = (current_tensor - grad_part) * 2.0;
+        &grad / grad.norm()
+    }
+
     #[test]
     fn selected_feature_nll_and_classifier_return_batch_outputs() {
         let mut mps = MPS::random(4, 2, 2, MPSType::Open, Kind::Float, Device::Cpu, false);
@@ -565,5 +629,31 @@ mod tests {
             &[0, 2],
         );
         assert_eq!(predictions.size(), vec![3]);
+    }
+
+    #[test]
+    fn gmps_step_and_gradient_helpers_match_compact_references() {
+        let current_tensor = Tensor::randn([2, 3, 4], (Kind::Float, Device::Cpu));
+        let env_left = Tensor::randn([5, 2], (Kind::Float, Device::Cpu));
+        let env_right = Tensor::randn([5, 4], (Kind::Float, Device::Cpu));
+        let sample = Tensor::randn([5, 3], (Kind::Float, Device::Cpu));
+
+        let (actual_left, actual_left_norm) =
+            calc_left_to_right_step(&current_tensor, &env_left, &sample);
+        let (expected_left, expected_left_norm) =
+            raw_calc_left_to_right_step(&current_tensor, &env_left, &sample);
+        assert!(actual_left.allclose(&expected_left, 1e-5, 1e-6, false));
+        assert!(actual_left_norm.allclose(&expected_left_norm, 1e-5, 1e-6, false));
+
+        let (actual_right, actual_right_norm) =
+            calc_right_to_left_step(&current_tensor, &env_right, &sample);
+        let (expected_right, expected_right_norm) =
+            raw_calc_right_to_left_step(&current_tensor, &env_right, &sample);
+        assert!(actual_right.allclose(&expected_right, 1e-5, 1e-6, false));
+        assert!(actual_right_norm.allclose(&expected_right_norm, 1e-5, 1e-6, false));
+
+        let actual_grad = calc_gradient(&env_left, &env_right, &sample, &current_tensor, false);
+        let expected_grad = raw_calc_gradient(&env_left, &env_right, &sample, &current_tensor);
+        assert!(actual_grad.allclose(&expected_grad, 1e-5, 1e-6, false));
     }
 }

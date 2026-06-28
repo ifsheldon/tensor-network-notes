@@ -102,7 +102,11 @@ pub fn calculate_mps_local_energies(
         assert_eq!(pos.len(), 2, "Only support 2-body interaction for now");
         let rdm = mps.two_body_reduced_density_matrix(pos[0], pos[1], true);
         let h = view_gate_tensor_as_matrix(&hamiltonian.to_device(rdm.device()), None);
-        energies.push(Tensor::einsum("ab,ba->", &[&h, &rdm], None::<i64>));
+        energies.push(Tensor::einsum(
+            einsumstr!("row col, col row ->"),
+            &[&h, &rdm],
+            None::<i64>,
+        ));
     }
     Tensor::stack(&energies, 0)
 }
