@@ -1,5 +1,6 @@
 //! ADQC recurrent network helpers.
 
+use einops::einops;
 use tch::{Device, Kind, Tensor, nn};
 
 use crate::feature_mapping::{cossin_feature_map, feature_map_to_qubit_state};
@@ -59,10 +60,11 @@ impl ADQCRNN {
         let device = data_batch.device();
         let aux_flat_dim = 2_i64.pow(self.num_aux_qubits as u32);
         let feature_flat_dim = 2_i64.pow(self.num_feature_qubits as u32);
-        let mut aux = zeros_state(self.num_aux_qubits, self.complex_kind, Device::Cpu)
+        let batch_usize = batch as usize;
+        let aux_state = zeros_state(self.num_aux_qubits, self.complex_kind, Device::Cpu)
             .to_device(device)
-            .reshape([1, aux_flat_dim])
-            .repeat([batch, 1]);
+            .reshape([aux_flat_dim]);
+        let mut aux = einops!("aux_flat -> {batch_usize} aux_flat", &aux_state);
         let mut norms = Tensor::ones([batch, 1], (data_batch.kind(), device));
         for t in 0..sample_length {
             let features = cossin_feature_map(&data_batch.select(1, t), 1.0, true);
@@ -115,9 +117,18 @@ pub fn prepare_series_samples(series: &Tensor, sample_length: i64, step_size: i6
 
 #[cfg(test)]
 mod tests {
-    use tch::{Device, Kind, Tensor};
+    use tch::{Device, Kind, Tensor, nn};
 
     use super::*;
+
+    #[test]
+    fn adqc_rnn_forward_returns_one_norm_per_sample() {
+        let vs = nn::VarStore::new(Device::Cpu);
+        let model = ADQCRNN::new(&vs.root(), 1, 1, 1, GatePattern::Brick, true, false);
+        let data = Tensor::rand([3, 4, 1], (Kind::Float, Device::Cpu));
+        let out = model.forward(&data);
+        assert_eq!(out.size(), vec![3]);
+    }
 
     #[test]
     fn prepare_series_samples_uses_sliding_windows() {

@@ -1,5 +1,6 @@
 //! Residual MPS network.
 
+use einops::einops;
 use tch::{Kind, Tensor, nn};
 
 /// A basic residual MPS model.
@@ -60,7 +61,11 @@ impl ResMPSSimple {
         let (batch, num_features, feature_dim) = features.size3().expect("3D features");
         assert_eq!(num_features, self.num_features);
         assert_eq!(feature_dim, self.feature_dim);
-        let mut latent_left = self.contract_vector_left.unsqueeze(0).repeat([batch, 1]);
+        let batch_usize = batch as usize;
+        let mut latent_left = einops!(
+            "virtual_left -> {batch_usize} virtual_left",
+            &self.contract_vector_left
+        );
         for idx in 0..self.class_idx {
             let latent = Tensor::einsum(
                 "lfr,bl,bf->br",
@@ -73,7 +78,10 @@ impl ResMPSSimple {
             );
             latent_left = latent + latent_left;
         }
-        let mut latent_right = self.contract_vector_right.unsqueeze(0).repeat([batch, 1]);
+        let mut latent_right = einops!(
+            "virtual_right -> {batch_usize} virtual_right",
+            &self.contract_vector_right
+        );
         for idx in ((self.class_idx + 1)..num_features).rev() {
             let latent = Tensor::einsum(
                 "lfr,br,bf->bl",

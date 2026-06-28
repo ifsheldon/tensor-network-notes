@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use einops::einops;
 use tch::{Device, IndexOp, Kind, Tensor};
 
 use crate::error::{Result, TensorNetworkError};
@@ -566,12 +567,9 @@ impl MPS {
             None::<i64>,
         );
         if return_matrix {
-            rdm.permute([0, 2, 1, 3]).reshape([
-                self.physical_dim() * self.physical_dim(),
-                self.physical_dim() * self.physical_dim(),
-            ])
+            einops!("i j p q -> (i p) (j q)", &rdm)
         } else {
-            rdm.permute([0, 2, 1, 3])
+            einops!("i j p q -> i p j q", &rdm)
         }
     }
 }
@@ -617,6 +615,7 @@ fn normalize_index(index: isize, length: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use einops::einops;
     use tch::{Device, Kind};
     use tempfile::NamedTempFile;
 
@@ -655,5 +654,17 @@ mod tests {
         let loaded = MPS::load_safetensors(file.path(), false).expect("load");
         assert_eq!(loaded.center(), Some(1));
         assert_eq!(loaded.local_tensor(0).size(), mps.local_tensor(0).size());
+    }
+
+    #[test]
+    fn two_body_rdm_layout_matches_raw_permute_and_reshape_reference() {
+        let rdm = Tensor::arange(36, (Kind::Float, Device::Cpu)).reshape([2, 2, 3, 3]);
+        let tensor = einops!("i j p q -> i p j q", &rdm);
+        let expected_tensor = rdm.permute([0, 2, 1, 3]);
+        assert!(tensor.allclose(&expected_tensor, 1e-5, 1e-8, false));
+
+        let matrix = einops!("i j p q -> (i p) (j q)", &rdm);
+        let expected_matrix = rdm.permute([0, 2, 1, 3]).reshape([6, 6]);
+        assert!(matrix.allclose(&expected_matrix, 1e-5, 1e-8, false));
     }
 }
