@@ -61,10 +61,9 @@ impl ADQCRNN {
         let aux_flat_dim = 2_i64.pow(self.num_aux_qubits as u32);
         let feature_flat_dim = 2_i64.pow(self.num_feature_qubits as u32);
         let batch_usize = batch as usize;
-        let aux_state = zeros_state(self.num_aux_qubits, self.complex_kind, Device::Cpu)
-            .to_device(device)
-            .reshape([aux_flat_dim]);
-        let mut aux = einops!("aux_flat -> {batch_usize} aux_flat", &aux_state);
+        let aux_state =
+            zeros_state(self.num_aux_qubits, self.complex_kind, Device::Cpu).to_device(device);
+        let mut aux = einops!(".. -> {batch_usize} (..)", &aux_state);
         let mut norms = Tensor::ones([batch, 1], (data_batch.kind(), device));
         for t in 0..sample_length {
             let features = cossin_feature_map(&data_batch.select(1, t), 1.0, true);
