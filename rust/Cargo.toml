@@ -8,6 +8,7 @@ default = []
 python-interop = ["dep:pyo3", "tch/python-extension"]
 
 [dependencies]
+einops = { path = "einops-rs" }
 linfa-datasets = { version = "0.8.1", default-features = false, features = ["iris"] }
 pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
 tch = { path = "tch-rs" }
