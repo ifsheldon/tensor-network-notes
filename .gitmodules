@@ -4,3 +4,6 @@
 [submodule "rust/tch-rs"]
 	path = rust/tch-rs
 	url = git@github.com:ifsheldon/tch-rs.git
+[submodule "rust/einops-rs"]
+	path = rust/einops-rs
+	url = git@github.com:ifsheldon/einops-rs.git
